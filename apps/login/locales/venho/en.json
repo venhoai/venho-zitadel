@@ -28,5 +28,24 @@
       "title": "Authorization approved",
       "description": "You're all set. You can now return to the app to continue."
     }
+  },
+  "loginname": {
+    "title": "Welcome back",
+    "description": "Enter your account details to login",
+    "registerPrompt": "Don't have an account?",
+    "register": "Sign up",
+    "labels": {
+      "loginname": "Username"
+    }
+  },
+  "password": {
+    "verify": {
+      "title": "Welcome back",
+      "description": "Enter your account details to login",
+      "resetPassword": "Forgot your password?",
+      "labels": {
+        "password": "Password"
+      }
+    }
   }
 }

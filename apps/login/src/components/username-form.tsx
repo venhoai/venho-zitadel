@@ -114,9 +114,35 @@ export function UsernameForm({
             data-testid="username-text-input"
             suffix={hideSuffix ? undefined : suffix}
           />
-          {allowRegister && (
+        </div>
+
+        {error && (
+          <div className="py-4" data-testid="error">
+            <Alert>{error}</Alert>
+          </div>
+        )}
+        <div className="mt-4 flex w-full flex-col gap-[16px]">
+          <Button
+            data-testid="submit-button"
+            type="submit"
+            className="h-[40px] w-full justify-center"
+            variant={ButtonVariants.Primary}
+            disabled={loading || !formState.isValid}
+            onClick={handleSubmit((e) => submitLoginName(e, organization))}
+          >
+            {loading && <Spinner className="mr-2 h-5 w-5" />}
+            <Translated i18nKey="submit" namespace="loginname" />
+          </Button>
+          <BackButton data-testid="back-button" />
+        </div>
+
+        {allowRegister && (
+          <div className="mt-[20px] flex w-full flex-row items-baseline justify-center gap-[4px] text-sm leading-5">
+            <span className="text-text-light-secondary-500 dark:text-text-dark-secondary-500">
+              <Translated i18nKey="registerPrompt" namespace="loginname" />
+            </span>
             <button
-              className="hover:text-primary-light-500 dark:hover:text-primary-dark-500 text-sm transition-all"
+              className="text-text-light-500 dark:text-text-dark-500 font-semibold hover:underline"
               onClick={() => {
                 const registerParams = new URLSearchParams();
                 if (organization) {
@@ -134,29 +160,8 @@ export function UsernameForm({
             >
               <Translated i18nKey="register" namespace="loginname" />
             </button>
-          )}
-        </div>
-
-        {error && (
-          <div className="py-4" data-testid="error">
-            <Alert>{error}</Alert>
           </div>
         )}
-        <div className="mt-4 flex w-full flex-row items-center">
-          <BackButton data-testid="back-button" />
-          <span className="flex-grow"></span>
-          <Button
-            data-testid="submit-button"
-            type="submit"
-            className="self-end"
-            variant={ButtonVariants.Primary}
-            disabled={loading || !formState.isValid}
-            onClick={handleSubmit((e) => submitLoginName(e, organization))}
-          >
-            {loading && <Spinner className="mr-2 h-5 w-5" />}
-            <Translated i18nKey="submit" namespace="loginname" />
-          </Button>
-        </div>
       </form>
     </>
   );

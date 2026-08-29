@@ -111,18 +111,23 @@ export default {
           dark: "rgba(135,149,161,.2)",
           light: "rgba(135,149,161,.2)",
         },
+        // VENHO FORK: field colours from the designs. Upstream's dark border
+        // (#f9f7f775) is a near-opaque white that reads as an outline around
+        // every field; the designs use a faint white wash with a low-alpha
+        // border so the field sits *in* the page rather than on it. Labels are
+        // full-strength foreground, not the washed-out #ffffffc7.
         input: {
           light: {
-            label: "#000000c7",
-            background: "#00000004",
-            border: "#1a191954",
-            hoverborder: "1a1b1b",
+            label: "#0a0a0a",
+            background: "#00000005",
+            border: "#0000001a",
+            hoverborder: "#00000040",
           },
           dark: {
-            label: "#ffffffc7",
-            background: "#00000020",
-            border: "#f9f7f775",
-            hoverborder: "#e0e0e0",
+            label: "#f5f5f6",
+            background: "#ffffff0a",
+            border: "#ffffff26",
+            hoverborder: "#ffffff40",
           },
         },
         button: {

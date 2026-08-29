@@ -1,6 +1,7 @@
-# venho-login
+# venhoai/zitadel — Venho login fork
 
-Venho's fork of [zitadel/zitadel](https://github.com/zitadel/zitadel), carrying a
+Venho's fork of [zitadel/zitadel](https://github.com/zitadel/zitadel) — pushed to
+[venhoai/zitadel](https://github.com/venhoai/zitadel) — carrying a
 rebranded **Login V2** app (`apps/login`).
 
 Everything outside `apps/login` is upstream and should stay that way — the fork
