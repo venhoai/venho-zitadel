@@ -114,5 +114,13 @@
       "title": "2-Factor Verification",
       "description": "Verify your 2-Factor with the registered device (e.g. FaceID, Windows Hello, Fingerprint)."
     }
+  },
+  "idp": {
+    "orSignInWith": "or",
+    "signInWithApple": "Continue with Apple",
+    "signInWithGoogle": "Continue with Google",
+    "signInWithAzureAD": "Continue with Microsoft",
+    "signInWithGithub": "Continue with GitHub",
+    "signInWithGitlab": "Continue with GitLab"
   }
 }

@@ -10,7 +10,7 @@ export const SignInWithAzureAd = forwardRef<HTMLButtonElement, SignInWithIdentit
 
     return (
       <BaseButton {...restProps} ref={ref}>
-        <div className="flex h-12 w-12 items-center justify-center p-[10px]">
+        <div className="flex h-[20px] w-[20px] items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 21 21" className="h-full w-full">
             <path fill="#f25022" d="M1 1H10V10H1z"></path>
             <path fill="#00a4ef" d="M1 11H10V20H1z"></path>
@@ -21,7 +21,7 @@ export const SignInWithAzureAd = forwardRef<HTMLButtonElement, SignInWithIdentit
         {children ? (
           children
         ) : (
-          <span className="ml-4">{name ? name : <Translated i18nKey="signInWithAzureAD" namespace="idp" />}</span>
+          <span><Translated i18nKey="signInWithAzureAD" namespace="idp" /></span>
         )}
       </BaseButton>
     );

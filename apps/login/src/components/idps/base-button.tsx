@@ -33,15 +33,18 @@ export const BaseButton = forwardRef<HTMLButtonElement, SignInWithIdentityProvid
       ref={ref}
       disabled={formStatus.pending}
       className={clsx(
-        `text-text-light-500 focus:border-primary-light-500 dark:text-text-dark-500 focus:dark:border-primary-dark-500 flex flex-1 cursor-pointer flex-row items-center px-4 text-sm transition-all outline-none hover:border-black hover:dark:border-white`,
+        // VENHO FORK: 40px tall with the mark and label centred, matching the
+        // primary button they sit under in the designs. Upstream left the
+        // content flush left at whatever height the icon happened to impose.
+        `text-text-light-500 focus:border-primary-light-500 dark:text-text-dark-500 focus:dark:border-primary-dark-500 flex h-[40px] flex-1 cursor-pointer flex-row items-center px-4 text-sm transition-all outline-none hover:border-black hover:dark:border-white`,
         buttonRoundness,
         idpButtonAppearance,
         `bg-background-light-400 dark:bg-background-dark-500`, // Keep background as fallback for non-glass themes
         props.className,
       )}
     >
-      <div className="flex flex-1 items-center justify-between gap-4">
-        <div className="flex flex-1 flex-row items-center">{props.children}</div>
+      <div className="flex flex-1 items-center justify-center gap-2">
+        <div className="flex flex-row items-center gap-2">{props.children}</div>
         {formStatus.pending && <Loader2Icon className="h-4 w-4 animate-spin" />}
       </div>
     </button>

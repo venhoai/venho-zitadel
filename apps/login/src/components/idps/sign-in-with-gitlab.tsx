@@ -10,7 +10,7 @@ export const SignInWithGitlab = forwardRef<HTMLButtonElement, SignInWithIdentity
 
     return (
       <BaseButton {...restProps} ref={ref}>
-        <div className="flex h-12 w-12 items-center justify-center">
+        <div className="flex h-[20px] w-[20px] items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" width={25} height={24} fill="none">
             <path
               fill="#e24329"
@@ -33,7 +33,7 @@ export const SignInWithGitlab = forwardRef<HTMLButtonElement, SignInWithIdentity
         {children ? (
           children
         ) : (
-          <span className="ml-4">{name ? name : <Translated i18nKey="signInWithGitlab" namespace="idp" />}</span>
+          <span><Translated i18nKey="signInWithGitlab" namespace="idp" /></span>
         )}
       </BaseButton>
     );
