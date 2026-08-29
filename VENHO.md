@@ -181,16 +181,25 @@ that approving completes the poll in the app, and that the granted scope still
 carries `urn:zitadel:iam:org:project:id:zitadel:aud` — without it the desktop's
 in-app profile editor silently 401s.
 
-## Instance settings the designs assume
+## Instance and server settings the designs assume
 
 These are ZITADEL configuration, not code, and the app cannot set them for
 itself:
 
-- **Instance name.** The TOTP enrolment QR encodes
-  `otpauth://totp/<instance>:<user>?issuer=<instance>`, so on a stock instance
-  the user's authenticator app files Venho under "ZITADEL" forever — renaming it
-  later does not update codes already enrolled. Set the instance name before
-  anyone enrols.
+- **TOTP issuer**, `ZITADEL_SYSTEMDEFAULTS_MULTIFACTORS_OTP_ISSUER=Venho.AI`.
+  The enrolment QR encodes `otpauth://totp/<issuer>:<user>?issuer=<issuer>`, and
+  the issuer is what the authenticator app files the account under. It is a
+  **server default**, not an instance setting and not the instance name
+  (`internal/command/user_human_otp.go:108` reads
+  `c.multifactors.OTP.Issuer`, seeded from config in
+  `internal/command/command.go:221`) — so no admin API call can change it and it
+  cannot be set per-instance. It ships as the literal string `"ZITADEL"`; left
+  alone, every Venho user's authenticator app says ZITADEL forever, because the
+  issuer is baked into each QR at enrolment and changing it later does not
+  update codes already enrolled. Set it before anyone enrols. Empty is *not* a
+  fix: the fallback is the requested domain, i.e. `auth.dev.venho.ai`.
+  `deploy/venho/compose.dev.yml` sets it for local dev; production has to set the
+  same value on the ZITADEL container.
 - **Passkeys as a primary method.** The sign-up design goes straight from email
   to password; upstream shows a "Passkey or Password?" chooser whenever
   `passkeysType` is `ALLOWED`. The designs use device/WebAuthn as a *second*

@@ -8,6 +8,10 @@ services:
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://localhost:3000/ui/v2/login/
       ZITADEL_OIDC_DEFAULTLOGINURLV2: http://localhost:3000/ui/v2/login/login?authRequest=
       ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://localhost:3000/ui/v2/login/logout?post_logout_redirect=
+      # The TOTP issuer is a SERVER default, not an instance setting and not the
+      # instance name: it is baked into each enrolment QR and cannot be changed
+      # for codes already enrolled. Keep this identical to production.
+      ZITADEL_SYSTEMDEFAULTS_MULTIFACTORS_OTP_ISSUER: Venho.AI
       ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin.pat
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: venho-admin-sa
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Venho local admin

@@ -39,6 +39,16 @@ ZITADEL_API_URL=http://localhost:8080 ZITADEL_API_DOMAIN=localhost \
 Finally `pnpm --filter @zitadel/login dev` and open
 <http://localhost:3000/ui/v2/login/loginname>.
 
+The overlay also pins `ZITADEL_SYSTEMDEFAULTS_MULTIFACTORS_OTP_ISSUER=Venho.AI`
+so enrolment QRs here match production. Check it after any change to the API
+container — the value is baked into each QR at enrolment, so a wrong one is only
+fixable by re-enrolling every user:
+
+```sh
+docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' zitadel-zitadel-api-1 \
+  | grep OTP_ISSUER   # the image is distroless: no shell, no printenv
+```
+
 ## Exercising the device grant
 
 This is the path venho-desktop and Mind 2 use, so it is worth driving for real
