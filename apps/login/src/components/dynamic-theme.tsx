@@ -96,20 +96,15 @@ export function DynamicTheme({
             const hasMultipleChildren = childArray.length > 1;
 
             return (
-              <div className="relative mx-auto w-full max-w-[440px] px-4 py-4">
-                <Card>
+              // VENHO FORK: a 380px column, and no logo inside it — the brand
+              // mark is page chrome now (see the login layout), which is where
+              // the designs put it. Upstream drew it here at 150px, above every
+              // form.
+              <div className="relative mx-auto w-full max-w-[380px] px-4">
+                {/* No card padding: with no surface to sit inside, the column
+                    itself is the layout and the page shell owns the insets. */}
+                <Card padding="p-0">
                   <div className="mx-auto flex flex-col items-center space-y-8">
-                    <div className="relative flex flex-row items-center justify-center">
-                      {branding && (
-                        <Logo
-                          lightSrc={branding.lightTheme?.logoUrl}
-                          darkSrc={branding.darkTheme?.logoUrl}
-                          height={150}
-                          width={150}
-                        />
-                      )}
-                    </div>
-
                     {hasMultipleChildren ? (
                       <>
                         {/* Title and description - center aligned */}

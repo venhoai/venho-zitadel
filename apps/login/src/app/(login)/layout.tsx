@@ -1,11 +1,11 @@
 import "@/styles/globals.scss";
 
 import { BackgroundWrapper } from "@/components/background-wrapper";
+import { BrandLogo } from "@/components/venho/brand-logo";
 import { LanguageProvider } from "@/components/language-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { Skeleton } from "@/components/skeleton";
 import { ThemeProvider } from "@/components/theme-provider";
-import ThemeSwitch from "@/components/theme-switch";
 import { LANGS, getLanguage } from "@/lib/i18n";
 import { getServiceConfig } from "@/lib/service-url";
 import { getAllowedLanguages } from "@/lib/zitadel";
@@ -63,28 +63,41 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Suspense
               fallback={
                 <BackgroundWrapper
-                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col justify-center`}
+                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col`}
                 >
-                  <div className="relative mx-auto w-full max-w-[440px] py-8">
+                  <div className="absolute top-[32px] left-[32px] z-10">
+                    <BrandLogo />
+                  </div>
+                  <div className="relative mx-auto w-full max-w-[380px] px-4 pt-[140px] pb-8">
                     <Skeleton>
                       <div className="h-40"></div>
                     </Skeleton>
-                    <div className="flex flex-row items-center justify-end space-x-4 py-4">
-                      <ThemeSwitch />
-                    </div>
                   </div>
                 </BackgroundWrapper>
               }
             >
               <LanguageProvider>
                 <BackgroundWrapper
-                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col justify-center`}
+                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col`}
                 >
-                  <div className="relative mx-auto w-full max-w-[1100px] py-8">
+                  {/* VENHO FORK: the brand mark is page chrome, pinned to the
+                      top-left on every screen, rather than something each page
+                      or the card draws for itself. */}
+                  <div className="absolute top-[32px] left-[32px] z-10">
+                    <BrandLogo />
+                  </div>
+
+                  {/* The designs sit the column near the top of the viewport
+                      (~140px), not vertically centred, so the form does not
+                      jump as its height changes between steps. */}
+                  <div className="relative mx-auto w-full max-w-[1100px] px-4 pt-[140px] pb-8">
                     <div>{children}</div>
-                    <div className="mx-auto flex max-w-[440px] flex-row items-center justify-end space-x-4 px-4 py-4 md:max-w-full md:px-8">
+
+                    {/* Language stays available but out of the way. The theme
+                        switch is gone: the instance pins THEME_MODE_DARK and no
+                        light screens were designed. */}
+                    <div className="mx-auto mt-8 flex max-w-[380px] flex-row items-center justify-center px-4">
                       <LanguageSwitcher languages={languages} />
-                      <ThemeSwitch />
                     </div>
                   </div>
                 </BackgroundWrapper>

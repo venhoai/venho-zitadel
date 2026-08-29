@@ -2,7 +2,7 @@
 
 export type ThemeRoundness = "edgy" | "mid" | "full";
 export type ThemeLayout = "side-by-side" | "top-to-bottom";
-export type ThemeAppearance = "flat" | "material" | "glass";
+export type ThemeAppearance = "flat" | "material" | "glass" | "venho";
 export type ThemeSpacing = "regular" | "compact";
 
 export interface ComponentRoundnessConfig {
@@ -141,6 +141,23 @@ export const APPEARANCE_STYLES = {
       "!bg-background-[#00000020] !dark:bg-background-[#ffffff50] transition shadow shadow-md hover:shadow-lg active:shadow-xl", // Material shadows for IDP buttons
     typography: "font-medium",
     background: "bg-background-light-400 dark:bg-background-dark-500", // Current system (shade 400)
+  },
+  // VENHO FORK: the designs put the form directly on the page — no card surface,
+  // no border, no shadow. Everything that reads as structure comes from spacing
+  // and the background glow. Added as its own appearance rather than by editing
+  // `flat`, so upstream's three presets keep their meaning.
+  venho: {
+    card: "border-0 shadow-none",
+    // Applied to EVERY button regardless of variant, and an empty string here
+    // falls back to flat's border (see getDefaultButtonAppearance) — so this has
+    // to be an explicit no-chrome value. The designs give buttons their fill and
+    // shadow per variant, not per appearance.
+    button: "shadow-none",
+    "idp-button": "border border-button-light-border dark:border-button-dark-border",
+    typography: "font-normal",
+    // `background` is the CARD's background — card.tsx is its only reader,
+    // despite the name. Transparent is the whole point of this appearance.
+    background: "bg-transparent",
   },
   glass: {
     card: "backdrop-blur-md bg-white/10 dark:bg-black/10 border border-white/20 dark:border-white/10 shadow-xl",
