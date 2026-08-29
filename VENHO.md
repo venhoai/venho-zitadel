@@ -33,12 +33,19 @@ client release**.
 corepack enable
 pnpm install --frozen-lockfile
 pnpm nx run-many --target generate     # proto codegen — required before build
-cp apps/login/.env.example apps/login/.env.dev.local   # then fill in the PAT
+cp apps/login/.env.example apps/login/.env.local       # then fill in the PAT
 pnpm --filter @zitadel/login dev
 ```
 
 The PAT belongs to a machine user with the **Instance Login Client**
 (`IAM_LOGIN_CLIENT`) role. Nothing runs without one.
+
+Note the filename: `.env.local`, not the `.env.dev.local` upstream's docs
+mention. Next does not load that name, so the app silently falls back to `.env`
+and every API call fails with `fetch() returned undefined`.
+
+For a disposable local instance to develop against — no dev-instance credentials
+needed — see [`deploy/venho/README.md`](deploy/venho/README.md).
 
 ## What we changed, and why
 
@@ -120,6 +127,36 @@ We serve from the **same origin** as the instance: the proxy in front of
 `auth.dev.venho.ai` routes `/ui/v2/login/*` to this app on port 3000 and
 everything else to ZITADEL. That avoids registering a Trusted Domain and all the
 cross-origin cookie and `x-zitadel-public-host` handling a separate domain needs.
+
+### The proxy MUST also rewrite `/device`
+
+This one bites silently. ZITADEL hands the device its verification URI as
+`https://<external domain>/device`, and the handler behind that path
+(`RedirectDeviceAuthToPrefix`, `internal/api/ui/login/device_auth.go`) redirects
+unconditionally to `/ui/login/device` — the **legacy v1 login UI**. It does not
+consult the Login V2 base URI, there is no config setting for it in v4.17.1
+(`DefaultLoginURLV2` covers OIDC and SAML only), and `loginV2.required: true`
+does not change it. Verified on a real instance: `/device?user_code=…` follows two
+redirects and serves the v1 page with a 200.
+
+So with only the `/ui/v2/login` rule in place, every venho-desktop and Mind 2
+user lands on the old login UI and never sees this app. The proxy has to send
+`/device` here too:
+
+| Path | Target | Rewrite |
+|---|---|---|
+| `/device` | login app | `/ui/v2/login/device` (preserve `?user_code=`) |
+| `/ui/v2/login/*` | login app | — |
+| everything else | ZITADEL API | — |
+
+In Traefik terms that is a router on ``Path(`/device`)`` at a higher priority
+than the catch-all, pointing at the `zitadel-login` service with a
+`replacepathregex` onto `/ui/v2/login/device`. Patching the Go handler is not an
+option for us: we deploy the stock `ghcr.io/zitadel/zitadel` image and build only
+the login app.
+
+**Status: specified, not yet exercised end to end.** The local harness runs the
+login app directly on :3000, so this rule has not been driven through a proxy.
 
 Cut over in two steps. Set the **Login V2 base URI** per-application on the
 desktop client `386369405199657810` first and verify; only then instance-wide.

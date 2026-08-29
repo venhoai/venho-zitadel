@@ -1,0 +1,19 @@
+# Local dev overlay: publish the ZITADEL API directly, mint an admin PAT for the
+# branding seed, and point Login V2 at the Next.js dev server on :3000.
+services:
+  zitadel-api:
+    ports:
+      - "8080:8080"
+    environment:
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://localhost:3000/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://localhost:3000/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://localhost:3000/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin.pat
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: venho-admin-sa
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Venho local admin
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
+
+# NOTE: this overlay deliberately does NOT start `zitadel-login`. The login app
+# runs from source on :3000 (`pnpm --filter @zitadel/login dev`) so changes are
+# visible without rebuilding an image, which is why the Login V2 base URI above
+# points at :3000 rather than at the proxy.
