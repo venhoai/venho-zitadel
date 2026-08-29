@@ -1,4 +1,4 @@
-import { Alert, AlertType } from "@/components/alert";
+import { Alert } from "@/components/alert";
 import { Button, ButtonVariants } from "@/components/button";
 import { DynamicTheme } from "@/components/dynamic-theme";
 import { Translated } from "@/components/translated";
@@ -6,6 +6,8 @@ import { UserAvatar } from "@/components/user-avatar";
 import { resolveRedirectUri } from "@/lib/client";
 import { getMostRecentCookieWithLoginname, getSessionCookieById } from "@/lib/cookies";
 import { completeDeviceAuthorization } from "@/lib/server/device";
+import { StatusPanel } from "@/components/venho/status-panel";
+import { Check } from "lucide-react";
 import { getServiceConfig } from "@/lib/service-url";
 import { loadMostRecentSession } from "@/lib/session";
 import { getBrandingSettings, getLoginSettings, getSession, ServiceConfig } from "@/lib/zitadel";
@@ -43,8 +45,10 @@ export default async function Page(props: { searchParams: Promise<any> }) {
 
   const branding = await getBrandingSettings({ serviceConfig, organization });
 
+  const isDeviceRequest = !!requestId && requestId.startsWith("device_");
+
   // complete device authorization flow if device requestId is present
-  if (requestId && requestId.startsWith("device_")) {
+  if (isDeviceRequest) {
     const cookie = sessionId
       ? await getSessionCookieById({ sessionId, organization })
       : await getMostRecentCookieWithLoginname({
@@ -91,6 +95,24 @@ export default async function Page(props: { searchParams: Promise<any> }) {
 
   const isSamePage = redirectUri?.startsWith("/signedin") ?? false;
 
+  // VENHO FORK: the device grant ends here, and it ends for good — the browser
+  // has nothing left to do and the user's attention belongs back on the device
+  // that sent them. Upstream showed "Welcome {user}!", an account dropdown and
+  // an untranslated hardcoded English notice; the designs show a single
+  // terminal panel. Everything else on this page (the redirect button, the
+  // avatar) only makes sense for a flow that continues in the browser.
+  if (isDeviceRequest) {
+    return (
+      <DynamicTheme branding={branding}>
+        <StatusPanel
+          icon={Check}
+          title={<Translated i18nKey="device.title" namespace="signedin" />}
+          description={<Translated i18nKey="device.description" namespace="signedin" />}
+        />
+      </DynamicTheme>
+    );
+  }
+
   return (
     <DynamicTheme branding={branding}>
       <div className="flex flex-col space-y-4">
@@ -104,18 +126,12 @@ export default async function Page(props: { searchParams: Promise<any> }) {
         <UserAvatar
           loginName={loginName ?? sessionFactors?.factors?.user?.loginName}
           displayName={sessionFactors?.factors?.user?.displayName ?? loginName}
-          showDropdown={!(requestId && requestId.startsWith("device_"))}
+          showDropdown={!isDeviceRequest}
           searchParams={searchParams}
         />
       </div>
 
       <div className="w-full">
-        {requestId && requestId.startsWith("device_") && (
-          <Alert type={AlertType.INFO}>
-            You can now close this window and return to the device where you started the authorization process to continue.
-          </Alert>
-        )}
-
         {redirectUri && !isSamePage && (
           <div className="mt-8 flex w-full flex-row items-center">
             <span className="flex-grow"></span>

@@ -1,7 +1,6 @@
 "use client";
 
 import { completeDeviceAuthorization } from "@/lib/server/device";
-import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -9,6 +8,7 @@ import { Alert } from "./alert";
 import { Button, ButtonVariants } from "./button";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
+import { ScopeList } from "./venho/scope-list";
 
 export function ConsentScreen({
   scope,
@@ -21,7 +21,6 @@ export function ConsentScreen({
   deviceAuthorizationRequestId: string;
   appName?: string;
 }) {
-  const t = useTranslations();
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const router = useRouter();
@@ -42,63 +41,50 @@ export function ConsentScreen({
     }
   }
 
-  const scopes = scope?.filter((s) => !!s);
-
   return (
-    <div className="flex w-full flex-col items-center space-y-4 pt-4">
-      <ul className="w-full list-disc space-y-2">
-        {scopes?.length === 0 && (
-          <span className="border-divider-light bg-background-light-400 dark:bg-background-dark-400 flex w-full flex-row items-center rounded-md border px-4 py-2 text-sm transition-all">
-            <Translated i18nKey="device.scope.openid" namespace="device" />
-          </span>
-        )}
-        {scopes?.map((s) => {
-          const translationKey = `device.scope.${s}`;
-          const description = t(translationKey);
-
-          // Check if the key itself is returned and provide a fallback
-          const resolvedDescription = description === translationKey ? "" : description;
-
-          return (
-            <li
-              key={s}
-              className="border-divider-light bg-background-light-400 dark:bg-background-dark-400 flex w-full flex-row items-center rounded-md border px-4 py-2 text-sm transition-all"
-            >
-              <span>{resolvedDescription}</span>
-            </li>
-          );
-        })}
-      </ul>
-
-      <p className="ztdl-p text-left text-xs">
-        <Translated i18nKey="request.disclaimer" namespace="device" data={{ appName: appName }} />
-      </p>
+    <div className="flex w-full flex-col items-center gap-[32px] pt-4">
+      {/* VENHO FORK: upstream rendered a bulleted list whose text came from a
+          translation lookup that silently resolved to "" for any scope it did
+          not know — including the two reserved audience scopes venho-desktop
+          asks for, which showed as blank rows. See venho/scopes.ts. */}
+      <ScopeList scopes={scope} appName={appName} />
 
       {error && (
-        <div className="py-4">
+        <div className="w-full">
           <Alert>{error}</Alert>
         </div>
       )}
 
-      <div className="mt-4 flex w-full flex-row items-center">
+      {/* Allow above Deny, both full width — the designs stack the actions
+          rather than sitting them at opposite ends of a row. */}
+      <div className="flex w-full flex-col gap-[16px]">
+        <Link href={nextUrl} className="w-full">
+          <Button
+            data-testid="submit-button"
+            type="submit"
+            variant={ButtonVariants.Primary}
+            className="h-[40px] w-full justify-center"
+          >
+            <Translated i18nKey="request.submit" namespace="device" />
+          </Button>
+        </Link>
+
         <Button
           onClick={() => {
             denyDeviceAuth();
           }}
-          variant={ButtonVariants.Secondary}
+          variant={ButtonVariants.Ghost}
           data-testid="deny-button"
+          className="h-[40px] w-full justify-center"
         >
           {loading && <Spinner className="mr-2 h-5 w-5" />}
-          <Translated i18nKey="device.request.deny" namespace="device" />
+          <Translated i18nKey="request.deny" namespace="device" />
         </Button>
-        <span className="flex-grow"></span>
-
-        <Link href={nextUrl}>
-          <Button data-testid="submit-button" type="submit" className="self-end" variant={ButtonVariants.Primary}>
-            <Translated i18nKey="device.request.submit" namespace="device" />
-          </Button>
-        </Link>
       </div>
+
+      <p className="ztdl-p text-center text-xs">
+        <Translated i18nKey="request.disclaimer" namespace="device" data={{ appName: appName }} />
+      </p>
     </div>
   );
 }

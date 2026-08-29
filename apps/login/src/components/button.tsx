@@ -12,6 +12,12 @@ export enum ButtonVariants {
   Primary = "Primary",
   Secondary = "Secondary",
   Destructive = "Destructive",
+  /**
+   * VENHO FORK: no border, no fill — just the label. The designs use this for
+   * the secondary action that sits under a primary one (Deny, Cancel, "Skip for
+   * now"), where Secondary's border would compete with the button above it.
+   */
+  Ghost = "Ghost",
 }
 
 export enum ButtonColors {
@@ -45,7 +51,9 @@ export const getButtonClasses = (
       "border border-button-light-border dark:border-button-dark-border text-gray-950 hover:bg-gray-500/20 hover:dark:bg-white/10 focus:bg-gray-500/20 focus:dark:bg-white/10 dark:text-white disabled:text-gray-600 disabled:hover:bg-transparent disabled:dark:hover:bg-transparent disabled:cursor-not-allowed disabled:dark:text-gray-900":
         variant === ButtonVariants.Secondary,
       "border border-button-light-border dark:border-button-dark-border text-warn-light-500 dark:text-warn-dark-500 hover:bg-warn-light-500/10 dark:hover:bg-warn-light-500/10 focus:bg-warn-light-500/20 dark:focus:bg-warn-light-500/20":
-        color === ButtonColors.Warn && variant !== ButtonVariants.Primary,
+        color === ButtonColors.Warn && variant !== ButtonVariants.Primary && variant !== ButtonVariants.Ghost,
+      "border-0 bg-transparent text-gray-950 hover:bg-gray-500/10 focus:bg-gray-500/10 dark:text-white dark:hover:bg-white/5 dark:focus:bg-white/5 disabled:cursor-not-allowed disabled:text-gray-600 disabled:hover:bg-transparent disabled:dark:text-gray-900":
+        variant === ButtonVariants.Ghost,
       "px-16 py-2": size === ButtonSizes.Large,
       "px-4 h-[36px]": size === ButtonSizes.Small,
     },

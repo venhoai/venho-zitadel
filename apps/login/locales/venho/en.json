@@ -1,0 +1,32 @@
+{
+  "device": {
+    "request": {
+      "title": "Sign in to {appName}",
+      "description": "You are about to grant {appName} access to the following info:",
+      "disclaimer": "By clicking Allow, you let {appName} use this information in accordance with its terms of service and privacy policy. You can revoke this access at any time."
+    },
+    "scope": {
+      "openid": "A unique identifier that allows {appName} to recognize your account.",
+      "profile": "Your name and basic profile info.",
+      "email": "Your email address, will be used as your login username.",
+      "offline_access": "Stay signed in without entering your details again.",
+      "account": "Change your account details, such as your name or password.",
+      "cloud": "Use your {appName} cloud services on this device."
+    },
+    "scopeTitle": {
+      "openid": "Open ID",
+      "profile": "Profile",
+      "email": "Email",
+      "offline_access": "Stay signed in",
+      "account": "Account settings",
+      "cloud": "Cloud services",
+      "unknown": "Additional access"
+    }
+  },
+  "signedin": {
+    "device": {
+      "title": "Authorization approved",
+      "description": "You're all set. You can now return to the app to continue."
+    }
+  }
+}
