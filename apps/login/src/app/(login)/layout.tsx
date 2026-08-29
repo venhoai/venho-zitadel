@@ -12,13 +12,25 @@ import { getAllowedLanguages } from "@/lib/zitadel";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { Lato } from "next/font/google";
+import { Geist, Manrope } from "next/font/google";
 import { headers } from "next/headers";
 import React, { Suspense } from "react";
 
-const lato = Lato({
-  weight: ["400", "700", "900"],
+// VENHO FORK: the login designs use two families — Geist for UI text and
+// controls (`font-font-sans-alt` in Figma) and Manrope for headings
+// (`font-font-sans`, the desktop app's own face). Both are pulled through
+// next/font, so they are self-hosted at build time: a login page must not make
+// a request to fonts.gstatic.com on the user's behalf.
+const geist = Geist({
   subsets: ["latin"],
+  variable: "--font-venho-sans",
+  display: "swap",
+});
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-venho-display",
+  display: "swap",
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -43,7 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html className={`${lato.className}`} suppressHydrationWarning>
+    <html className={`${geist.variable} ${manrope.variable} ${geist.className}`} suppressHydrationWarning>
       <head />
       <body>
         <ThemeProvider>

@@ -46,6 +46,15 @@ export default {
   },
   theme: {
     extend: {
+      // VENHO FORK: the two families the login designs use. `sans` is the
+      // default face for UI text and controls; `display` is reserved for
+      // headings. Both resolve to the CSS variables published by next/font in
+      // `src/app/(login)/layout.tsx`, with a system stack behind them so a font
+      // that fails to load still renders something sane.
+      fontFamily: {
+        sans: ["var(--font-venho-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-venho-display)", "var(--font-venho-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
       // https://vercel.com/design/color
       fontSize: {
         "12px": "12px",

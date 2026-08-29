@@ -3,9 +3,11 @@
 @config "../../tailwind.config.mjs";
 
 @layer base {
+  // VENHO FORK: headings carry Manrope (`font-display`); everything else stays
+  // on the default sans, which is Geist. See tailwind.config.mjs.
   h1,
   .ztdl-h1 {
-    @apply text-center text-2xl;
+    @apply font-display text-center text-2xl;
   }
 
   .ztdl-p {

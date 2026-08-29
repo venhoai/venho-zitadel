@@ -30,17 +30,41 @@ export type ColorMap = {
   [_key in MapName]: Color[];
 };
 
-export const DARK_PRIMARY = "#eeeeee";
-export const PRIMARY = "#5469d4";
+/**
+ * VENHO FORK — code-side brand defaults.
+ *
+ * These are only reached when the instance's branding policy has no colour set,
+ * or when the branding fetch fails. They are NOT the primary source of truth:
+ * the ZITADEL console's branding settings are, and they carry the same values.
+ * Keeping both in step means a failed settings call degrades to Venho colours
+ * rather than to ZITADEL blue in the middle of a sign-in.
+ *
+ * Every value is the desktop app's shipped token, so the login surface and the
+ * app it signs you into cannot drift apart. Left column is the Figma variable
+ * on the login designs; right is the token in
+ * `venho-desktop/source/lib/platform/ui/venho-desktop-react/src/styles.css`.
+ *
+ *   base-background  #0c111d   --background        220 41% 8%
+ *   base-foreground  #f5f5f6   --foreground        240 5% 96%
+ *   base-primary     #e5e5e5   --primary           0 0% 90%
+ *                              --destructive       0 91% 71%   (dark)
+ *                              --destructive       0 63% 31%   (light)
+ *
+ * The dark values are the designed ones — every login screen in the Figma set
+ * is dark. The light values are the desktop's `.light` block, carried so the
+ * theme switch still lands somewhere coherent; no light screens were designed.
+ */
+export const DARK_PRIMARY = "#e5e5e5";
+export const PRIMARY = "#171717";
 
-export const DARK_WARN = "#ff3b5b";
-export const WARN = "#cd3d56";
+export const DARK_WARN = "#f87272";
+export const WARN = "#811d1d";
 
-export const DARK_BACKGROUND = "#252526";
-export const BACKGROUND = "#fafafa";
+export const DARK_BACKGROUND = "#0c111d";
+export const BACKGROUND = "#ffffff";
 
-export const DARK_TEXT = "#ffffff";
-export const TEXT = "#000000";
+export const DARK_TEXT = "#f5f5f6";
+export const TEXT = "#0a0a0a";
 
 export type LabelPolicyColors = {
   backgroundColor: string;
