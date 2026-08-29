@@ -27,6 +27,9 @@ export default async function Page(props: { searchParams: Promise<Record<string 
 
   let { firstname, lastname, email, organization, requestId } = searchParams;
 
+  const tRegister = await getTranslations("register");
+  const registerDescription = tRegister("description");
+
   const _headers = await headers();
   const { serviceConfig } = getServiceConfig(_headers);
 
@@ -88,9 +91,10 @@ export default async function Page(props: { searchParams: Promise<Record<string 
         <h1>
           <Translated i18nKey="title" namespace="register" />
         </h1>
-        <p className="ztdl-p">
-          <Translated i18nKey="description" namespace="register" />
-        </p>
+        {/* VENHO FORK: the designs give sign-up a heading and nothing else.
+            Rendered conditionally rather than deleted so an operator who does
+            want a subtitle only has to set the string. */}
+        {registerDescription && <p className="ztdl-p">{registerDescription}</p>}
       </div>
 
       <div className="w-full">

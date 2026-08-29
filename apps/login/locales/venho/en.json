@@ -47,5 +47,30 @@
         "password": "Password"
       }
     }
+  },
+  "common": {
+    "title": "Venho"
+  },
+  "register": {
+    "title": "Sign up",
+    "description": "",
+    "loginPrompt": "Already have an account?",
+    "login": "Log in"
+  },
+  "verify": {
+    "verify": {
+      "title": "Verify your email",
+      "description": "Enter the code we sent to your email address.",
+      "submit": "Verify"
+    }
+  },
+  "otp": {
+    "verify": {
+      "title": "2-Factor Verification",
+      "totpDescription": "Verify your 2-Factor with an authenticator app, such as Google Authenticator, Microsoft Authenticator, or Authy.",
+      "emailDescription": "Enter the code we sent to your email address.",
+      "smsDescription": "Enter the code we sent by SMS.",
+      "submit": "Continue"
+    }
   }
 }

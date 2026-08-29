@@ -54,8 +54,11 @@ describe("VerifyForm", () => {
     test("should prefill code but not auto-submit when submit=false", () => {
       render(<VerifyForm userId="user-1" code="123456" isInvite={false} submit={false} />);
 
-      const input = screen.getByTestId("code-text-input");
-      expect(input).toHaveValue("123456");
+      // The code field is segmented — one box per character — so the whole
+      // value lives on the hidden field the form actually submits, and the
+      // boxes render it a character at a time.
+      expect(screen.getByTestId("code-value")).toHaveValue("123456");
+      expect(screen.getByTestId("code-text-input")).toHaveValue("1");
 
       const submitButton = screen.getByTestId("submit-button");
       expect(submitButton).toBeInTheDocument();

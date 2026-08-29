@@ -204,6 +204,33 @@ export function RegisterForm({
           </Button>
           <BackButton data-testid="back-button" />
         </div>
+
+        {/* VENHO FORK: the way back to sign-in, phrased as the designs have it.
+            Mirrors the "Don't have an account? Sign up" row on the sign-in
+            screen, so the two halves of the loop look like each other. */}
+        <div className="mt-[20px] flex w-full flex-row items-baseline justify-center gap-[4px] text-sm leading-5">
+          <span className="text-text-light-secondary-500 dark:text-text-dark-secondary-500">
+            <Translated i18nKey="loginPrompt" namespace="register" />
+          </span>
+          <button
+            className="text-text-light-500 dark:text-text-dark-500 font-semibold hover:underline"
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (organization) {
+                params.append("organization", organization);
+              }
+              if (requestId) {
+                params.append("requestId", requestId);
+              }
+              router.push("/loginname?" + params);
+            }}
+            type="button"
+            disabled={loading}
+            data-testid="login-button"
+          >
+            <Translated i18nKey="login" namespace="register" />
+          </button>
+        </div>
       </form>
     </>
   );

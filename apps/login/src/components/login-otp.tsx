@@ -15,7 +15,7 @@ import { Alert, AlertType } from "./alert";
 import { AutoSubmitForm } from "./auto-submit-form";
 import { BackButton } from "./back-button";
 import { Button, ButtonVariants } from "./button";
-import { TextInput } from "./input";
+import { CodeInput } from "./venho/code-input";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
 
@@ -46,7 +46,7 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
 
   const initialized = useRef(false);
 
-  const { register, handleSubmit, formState } = useForm<Inputs>({
+  const { register, handleSubmit, formState, setValue, watch } = useForm<Inputs>({
     mode: "onChange",
     defaultValues: {
       code: code ? code : "",
@@ -213,47 +213,22 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
     <>
       {samlData && <AutoSubmitForm url={samlData.url} fields={samlData.fields} />}
       <form className="w-full">
-        {["email", "sms"].includes(method) && (
-          <Alert type={AlertType.INFO}>
-            <div className="flex flex-row">
-              <span className="mr-auto flex-1 text-left">
-                <Translated i18nKey="verify.noCodeReceived" namespace="otp" />
-              </span>
-              <button
-                aria-label="Resend OTP Code"
-                disabled={loading}
-                type="button"
-                className="text-primary-light-500 hover:text-primary-light-400 dark:text-primary-dark-500 hover:dark:text-primary-dark-400 ml-4 cursor-pointer disabled:cursor-default disabled:text-gray-400 dark:disabled:text-gray-700"
-                onClick={async () => {
-                  setLoading(true);
-                  const response = await updateSessionForOTPChallenge();
-                  if (response?.error) {
-                    setError(response.error);
-                  }
-                  setLoading(false);
-                }}
-                data-testid="resend-button"
-              >
-                <Translated i18nKey="verify.resendCode" namespace="otp" />
-              </button>
-            </div>
-          </Alert>
-        )}
-        <div className="mt-4">
-          <TextInput
-            type="text"
-            autoFocus
-            {...register("code", { required: t("verify.required.code") })}
-            label={t("verify.labels.code")}
-            autoComplete="one-time-code"
-            data-testid="code-text-input"
-          />
-        </div>
+        <input type="hidden" data-testid="code-value" {...register("code", { required: t("verify.required.code") })} />
+
+        <CodeInput
+          value={watch("code") ?? ""}
+          onChange={(next) => setValue("code", next, { shouldValidate: true, shouldDirty: true })}
+          error={!!error}
+          disabled={loading}
+          autoFocus
+          label={t("verify.labels.code")}
+          data-testid="code-text-input"
+        />
 
         {error && (
-          <div className="py-4" data-testid="error">
-            <Alert>{error}</Alert>
-          </div>
+          <p className="text-warn-light-500 dark:text-warn-dark-500 mt-[8px] text-center text-sm" data-testid="error">
+            {error}
+          </p>
         )}
 
         <div className="mt-8 flex w-full flex-col gap-[16px]">
@@ -269,6 +244,31 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
           </Button>
           <BackButton data-testid="back-button" />
         </div>
+
+        {["email", "sms"].includes(method) && (
+          <div className="mt-[20px] flex w-full flex-row items-baseline justify-center gap-[4px] text-sm leading-5">
+            <span className="text-text-light-secondary-500 dark:text-text-dark-secondary-500">
+              <Translated i18nKey="verify.noCodeReceived" namespace="otp" />
+            </span>
+            <button
+              aria-label="Resend OTP Code"
+              disabled={loading}
+              type="button"
+              className="text-text-light-500 dark:text-text-dark-500 font-semibold hover:underline disabled:text-gray-400 dark:disabled:text-gray-700"
+              onClick={async () => {
+                setLoading(true);
+                const response = await updateSessionForOTPChallenge();
+                if (response?.error) {
+                  setError(response.error);
+                }
+                setLoading(false);
+              }}
+              data-testid="resend-button"
+            >
+              <Translated i18nKey="verify.resendCode" namespace="otp" />
+            </button>
+          </div>
+        )}
       </form>
     </>
   );
