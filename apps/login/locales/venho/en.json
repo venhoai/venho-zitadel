@@ -71,6 +71,48 @@
       "emailDescription": "Enter the code we sent to your email address.",
       "smsDescription": "Enter the code we sent by SMS.",
       "submit": "Continue"
+    },
+    "set": {
+      "title": "Setup 2-Factor Authentication",
+      "totpRegisterDescription": "If you don't already have one, download an authenticator app such as Google Authenticator, Microsoft Authenticator, or Authy. Scan the QR code with your authenticator app, or copy the secret and enter it manually.",
+      "submit": "Continue"
+    }
+  },
+  "accounts": {
+    "title": "Log in",
+    "description": "Choose an Account to log in with.",
+    "addAnother": "Add another Account"
+  },
+  "mfa": {
+    "set": {
+      "title": "Setup 2-Factor Authentication",
+      "description": "Choose a 2-Factor Authentication method to add an extra layer of security to your account and ensure that only you can access it.",
+      "skip": "Skip for now"
+    },
+    "verify": {
+      "title": "2-Factor Verification",
+      "description": "Choose how you would like to verify your identity."
+    },
+    "methods": {
+      "totp": {
+        "title": "Authenticator App",
+        "description": "e.g. Google/Microsoft Authenticator, Authy"
+      },
+      "u2f": {
+        "title": "Device",
+        "description": "e.g. FaceID, Windows Hello, Fingerprint"
+      }
+    }
+  },
+  "u2f": {
+    "set": {
+      "title": "Add Security Key",
+      "description": "A security key is a verification method that can be built into your phone, use Bluetooth, or plug directly into your computer's USB port.",
+      "submit": "Add Security Key"
+    },
+    "verify": {
+      "title": "2-Factor Verification",
+      "description": "Verify your 2-Factor with the registered device (e.g. FaceID, Windows Hello, Fingerprint)."
     }
   }
 }

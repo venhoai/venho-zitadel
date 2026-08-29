@@ -181,6 +181,23 @@ that approving completes the poll in the app, and that the granted scope still
 carries `urn:zitadel:iam:org:project:id:zitadel:aud` — without it the desktop's
 in-app profile editor silently 401s.
 
+## Instance settings the designs assume
+
+These are ZITADEL configuration, not code, and the app cannot set them for
+itself:
+
+- **Instance name.** The TOTP enrolment QR encodes
+  `otpauth://totp/<instance>:<user>?issuer=<instance>`, so on a stock instance
+  the user's authenticator app files Venho under "ZITADEL" forever — renaming it
+  later does not update codes already enrolled. Set the instance name before
+  anyone enrols.
+- **Passkeys as a primary method.** The sign-up design goes straight from email
+  to password; upstream shows a "Passkey or Password?" chooser whenever
+  `passkeysType` is `ALLOWED`. The designs use device/WebAuthn as a *second*
+  factor instead, so matching them means not allowing passkeys as the primary
+  method. That is a security-policy decision, deliberately left to a human.
+- **Branding**, via `apps/login/scripts/venho-branding.sh` — see above.
+
 ## Open items
 
 - Google / Microsoft / Apple IdPs need configuring on the instance before the

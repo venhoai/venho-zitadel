@@ -130,11 +130,10 @@ export function TotpRegister({ uri, loginName, sessionId, requestId, organizatio
               </div>
             )}
 
-            <div className="mt-8 flex w-full flex-row items-center">
-              <span className="flex-grow"></span>
+            <div className="mt-8 flex w-full flex-col gap-[16px]">
               <Button
+                className="h-[40px] w-full justify-center"
                 type="submit"
-                className="self-end"
                 variant={ButtonVariants.Primary}
                 disabled={loading || !formState.isValid}
                 onClick={handleSubmit(continueWithCode)}
