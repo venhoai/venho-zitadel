@@ -3,7 +3,8 @@
     "request": {
       "title": "Sign in to {appName}",
       "description": "You are about to grant {appName} access to the following info:",
-      "disclaimer": "By clicking Allow, you let {appName} use this information in accordance with its terms of service and privacy policy. You can revoke this access at any time."
+      "disclaimer": "By clicking Allow, you let {appName} use this information in accordance with its terms of service and privacy policy. You can revoke this access at any time.",
+      "continueAs": "Continuing as {loginName}"
     },
     "scope": {
       "openid": "A unique identifier that allows {appName} to recognize your account.",
