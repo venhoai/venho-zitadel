@@ -117,6 +117,31 @@ docker build -t <registry>/venho-login:v4.17.1-venho.1 apps/login
 
 Tag immutably as `<upstream version>-venho.<revision>`. Never deploy `latest`.
 
+### `public/` had to be copied to a different place
+
+`apps/login`'s `build` script is an upstream file we have edited, so a merge can
+quietly revert it. It used to run:
+
+    cp -r public scripts/* .next/standalone/
+
+but the server is started as `.next/standalone/apps/login/server.js` and Next
+serves static files from `<server dir>/public`, i.e.
+`.next/standalone/apps/login/public` — one level down from where the copy landed.
+Next's `output: standalone` never copies `public` itself, so **every file under
+`public/` 404s in any container build**: our logo and glows, and upstream's own
+`grid-*.svg` and `favicon.ico` with them. Pages and `_next/static` are unaffected,
+which is what makes it look like a routing or proxy problem rather than a
+packaging one. The script now copies `public` into `.next/standalone/apps/login/`,
+matching what it already does for `.next/static`.
+
+Worth reporting upstream — nothing about it is Venho-specific.
+
+After any upstream merge that touches `apps/login/package.json`, re-check with:
+
+    pnpm nx run @zitadel/login:build --skip-nx-cache
+    ls apps/login/.next/standalone/apps/login/public
+
+
 Runtime environment:
 
 - `ZITADEL_API_URL` — the instance, no trailing slash
