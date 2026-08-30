@@ -47,15 +47,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate proto packages
-        run: pnpm nx run-many --target generate
-
       - name: Build Login V2 standalone
         env:
           NEXT_PUBLIC_BASE_PATH: /ui/v2/login
           NX_DAEMON: "false"
           NX_DISABLE_DB: "true"
-        run: pnpm nx run @zitadel/login:build
+          NX_NO_CLOUD: "true"
+        run: pnpm nx run @zitadel/login:build --skip-nx-cache --verbose
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
