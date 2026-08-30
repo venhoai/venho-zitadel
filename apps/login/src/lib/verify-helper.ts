@@ -80,7 +80,13 @@ export async function checkEmailVerification(
   organization?: string,
   requestId?: string,
 ) {
-  if (!humanUser?.email?.isVerified && process.env.EMAIL_VERIFICATION === "true") {
+  // VENHO FORK: unconditional. Upstream gates this on EMAIL_VERIFICATION === "true",
+  // an env var that defaults to off, was off in our .env, and is not set at all in
+  // the deployed container — so nobody who signed up ever had to prove they own
+  // the address. Verifying the email is not an operator preference here: it is the
+  // one thing every sign-up path has to establish, and a passkey or a TOTP factor
+  // sits on top of it rather than in place of it.
+  if (!humanUser?.email?.isVerified) {
     const codeSent = await trySendVerification({
       userId: session.factors?.user?.id as string,
       isInvite: false,

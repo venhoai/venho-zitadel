@@ -124,6 +124,34 @@ export async function registerUser(
     return { error: t("errors.couldNotCreateSession") };
   }
 
+  // VENHO FORK: the email gate runs before the flow branches, so it cannot be
+  // reached round. Upstream only checked it on the password path; the passkey
+  // path minted a `verificationCheck` cookie on the spot and jumped to
+  // /passkey/set, which meant choosing "Passkey" on the sign-up screen skipped
+  // email verification altogether. A passkey is an additional factor, not a
+  // substitute for proving you own the address.
+  const userResponse = await getUserByID({ serviceConfig, userId: session?.factors?.user?.id }).catch((error) => {
+    logger.error("Failed to get user after session creation", { error });
+    return null;
+  });
+
+  if (!userResponse?.user) {
+    return { error: t("errors.userNotFound") };
+  }
+
+  const humanUser = userResponse.user.type.case === "human" ? userResponse.user.type.value : undefined;
+
+  const emailVerificationCheck = await checkEmailVerification(
+    session,
+    humanUser,
+    session.factors.user.organizationId,
+    command.requestId,
+  );
+
+  if (emailVerificationCheck?.redirect) {
+    return emailVerificationCheck;
+  }
+
   if (!command.password) {
     const params = new URLSearchParams({
       loginName: session.factors.user.loginName,
@@ -134,8 +162,11 @@ export async function registerUser(
       params.append("requestId", command.requestId);
     }
 
-    // Set verification cookie for users registering with passkey (no password)
-    // This allows them to proceed with passkey registration without additional verification
+    // Only reachable with an already-verified address, which registration cannot
+    // produce today — addHumanUser creates every user unverified. Kept so the
+    // passkey path still terminates correctly if that ever changes (an invited
+    // user completing enrolment, say). The cookie is the proof `/passkey/set`
+    // reads; it is now only ever minted for a user whose email is verified.
     const cookiesList = await cookies();
     const userAgentId = await getOrSetFingerprintId();
 
@@ -151,28 +182,6 @@ export async function registerUser(
 
     return { redirect: "/passkey/set?" + params };
   } else {
-    const userResponse = await getUserByID({ serviceConfig, userId: session?.factors?.user?.id }).catch((error) => {
-      logger.error("Failed to get user after session creation", { error });
-      return null;
-    });
-
-    if (!userResponse?.user) {
-      return { error: t("errors.userNotFound") };
-    }
-
-    const humanUser = userResponse.user.type.case === "human" ? userResponse.user.type.value : undefined;
-
-    const emailVerificationCheck = await checkEmailVerification(
-      session,
-      humanUser,
-      session.factors.user.organizationId,
-      command.requestId,
-    );
-
-    if (emailVerificationCheck?.redirect) {
-      return emailVerificationCheck;
-    }
-
     return completeFlowOrGetUrl(
       command.requestId && session.id
         ? {
@@ -260,23 +269,31 @@ export async function registerUserAndLinkToIDP(
     return { error: t("errors.couldNotCreateSession") };
   }
 
-  // const userResponse = await getUserByID({
-  //   serviceConfig.baseUrl,
-  //   userId: session?.factors?.user?.id,
-  // });
+  // VENHO FORK: live again — upstream ships this block commented out, so signing
+  // up through an external provider produced a user with an unverified address.
+  // addHumanUser creates every user with isVerified: false, including this path,
+  // so ZITADEL has no idea the provider already checked the mailbox. Every
+  // sign-up option verifies.
+  //
+  // If Google/Microsoft/Apple get configured and this round-trip is unwanted, the
+  // fix is to trust the provider's `email_verified` claim from the IdP intent and
+  // create the user verified — not to drop the check and take the address on faith.
+  const userResponse = await getUserByID({ serviceConfig, userId: session.factors.user.id }).catch((error) => {
+    logger.error("Failed to get user after IDP session creation", { error });
+    return null;
+  });
 
-  // if (!userResponse.user) {
-  //   return { error: "User not found in the system" };
-  // }
+  if (!userResponse?.user) {
+    return { error: t("errors.userNotFound") };
+  }
 
-  // const humanUser = userResponse.user.type.case === "human" ? userResponse.user.type.value : undefined;
+  const humanUser = userResponse.user.type.case === "human" ? userResponse.user.type.value : undefined;
 
-  // check to see if user was verified
-  // const emailVerificationCheck = checkEmailVerification(session, humanUser, command.organization, command.requestId);
+  const emailVerificationCheck = await checkEmailVerification(session, humanUser, command.organization, command.requestId);
 
-  // if (emailVerificationCheck?.redirect) {
-  //   return emailVerificationCheck;
-  // }
+  if (emailVerificationCheck?.redirect) {
+    return emailVerificationCheck;
+  }
 
   // check if user has MFA methods
   let authMethods;

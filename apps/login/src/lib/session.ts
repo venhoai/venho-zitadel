@@ -175,16 +175,19 @@ export async function isSessionValid({
     return false;
   }
 
-  // Check email verification if EMAIL_VERIFICATION environment variable is enabled
-  if (process.env.EMAIL_VERIFICATION === "true") {
-    const userResponse = await getUserByID({ serviceConfig, userId: session.factors.user.id });
+  // VENHO FORK: unconditional (upstream: gated on EMAIL_VERIFICATION === "true").
+  // This is what closes the loop on the sign-up gate. Registration creates the
+  // session *before* the email is verified, so a user who abandons the /verify
+  // step is left holding a live session; without this check that session is
+  // valid and the next request signs them straight in, which would make the
+  // gate on the way in worth nothing. Costs one getUserByID per validation.
+  const userResponse = await getUserByID({ serviceConfig, userId: session.factors.user.id });
 
-    const humanUser = userResponse?.user?.type.case === "human" ? userResponse?.user.type.value : undefined;
+  const humanUser = userResponse?.user?.type.case === "human" ? userResponse?.user.type.value : undefined;
 
-    if (humanUser && !humanUser.email?.isVerified) {
-      console.warn("[Session] Email is not verified");
-      return false;
-    }
+  if (humanUser && !humanUser.email?.isVerified) {
+    console.warn("[Session] Email is not verified");
+    return false;
   }
 
   return true;

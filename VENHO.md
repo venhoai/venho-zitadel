@@ -131,6 +131,59 @@ headings (the desktop app's face). Upstream used Lato.
   (Manrope).
 - `apps/login/src/styles/globals.scss` — headings take `font-display`.
 
+### Email verification is mandatory on every sign-up path
+
+Every sign-up path proves the user owns the address before the account is usable.
+A passkey or a TOTP factor is an **additional** factor — it sits on top of email
+verification, never in place of it.
+
+It was not happening at all, for three independent reasons that each had to be
+fixed:
+
+1. **The check was behind a switch that was off.** `checkEmailVerification` was
+   gated on `EMAIL_VERIFICATION === "true"`. Upstream defaults it off, our `.env`
+   set it to `false`, and the deployed container never set it at all — the build
+   script deletes `apps/login/.env` from the standalone output, so the variable
+   does not even exist at runtime. The variable is now **removed**, not pinned to
+   `true`: the code no longer reads it, and a knob that does nothing is worse than
+   no knob (`apps/login/src/lib/verify-helper.ts`).
+2. **The passkey path never called it.** `registerUser` branched on
+   `command.password`, and the no-password branch minted a `verificationCheck`
+   cookie on the spot and redirected to `/passkey/set`. That cookie *is* the
+   "this user was verified recently" proof the enrolment pages read, so choosing
+   "Passkey" on the sign-up screen skipped verification entirely. The gate now
+   runs **before** the branch, so there is no path around it
+   (`apps/login/src/lib/server/register.ts`).
+3. **The external-IdP path had it commented out.** Upstream ships
+   `registerUserAndLinkToIDP` with the block commented; since `addHumanUser`
+   creates every user with `isVerified: false` — IdP users included — that
+   produced accounts whose address nobody had confirmed. Live again.
+
+`isSessionValid` (`apps/login/src/lib/session.ts`) lost the same env gate, which
+is what closes the loop: registration creates the session *before* the email is
+verified, so a user who abandons `/verify` is left holding a live session. If
+that session validated, the gate on the way in would be worth nothing. Costs one
+`getUserByID` per session validation.
+
+**Operational prerequisite: the instance needs working SMTP.** Verification is no
+longer optional, so an instance that cannot send mail cannot complete a sign-up —
+users reach `/verify` and stop. The local throwaway stack has no SMTP configured;
+mint a code out of band to test the flow end to end:
+
+```sh
+curl -X POST -H "Authorization: Bearer $PAT" -H "Host: localhost" \
+  -H "Content-Type: application/json" \
+  http://localhost:8080/v2/users/<userId>/email/resend -d '{"returnCode":{}}'
+```
+
+`apps/login/src/lib/server/register.test.ts` pins the invariant for all three
+paths, including that the passkey path does not mint a `verificationCheck` cookie
+for an unverified user. Verified end to end against a real instance: password
+sign-up lands on `/verify` and then `/signedin`; passkey sign-up lands on
+`/verify` and then `/authenticator/set` to enrol the passkey; an abandoned,
+unverified sign-up that comes back through `/loginname` is sent to `/verify`
+rather than signed in; an already-verified user signs in normally.
+
 ## Staying in sync with upstream
 
 Treat upstream as a dependency, not a one-time import:

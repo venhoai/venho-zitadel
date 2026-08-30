@@ -595,8 +595,16 @@ describe("checkEmailVerification", () => {
     expect(result?.redirect).toContain("codeSent=true");
   });
 
-  it("should not redirect if EMAIL_VERIFICATION is not true", async () => {
-    process.env.EMAIL_VERIFICATION = "false";
+  // VENHO FORK: upstream asserted the opposite — that EMAIL_VERIFICATION=false
+  // suppresses the redirect. That switch was off in our .env and unset in the
+  // deployed container, which is why nobody signing up was ever asked to prove
+  // they own the address. Verification is not an operator preference here.
+  it.each(["false", "", undefined])("still redirects with EMAIL_VERIFICATION=%s", async (value) => {
+    if (value === undefined) {
+      delete process.env.EMAIL_VERIFICATION;
+    } else {
+      process.env.EMAIL_VERIFICATION = value;
+    }
 
     const humanUser: any = {
       email: {
@@ -606,7 +614,7 @@ describe("checkEmailVerification", () => {
 
     const result = await checkEmailVerification(mockSession, humanUser);
 
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ redirect: expect.stringContaining("/verify") });
   });
 
   it("should not redirect if email is verified", async () => {

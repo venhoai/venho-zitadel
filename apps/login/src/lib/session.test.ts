@@ -54,6 +54,21 @@ describe("isSessionValid", () => {
     // @ts-ignore - delete is OK for test environment variables
     delete process.env.EMAIL_VERIFICATION;
 
+    // VENHO FORK: isSessionValid now always resolves the user to check the email
+    // is verified, so every test needs a user to resolve. Default to verified —
+    // the tests below are about expiry, MFA and factor checks, not about email —
+    // and let the email-verification tests override it. vi.clearAllMocks() does
+    // not clear mockResolvedValue, so without a default here one test's
+    // unverified user leaks into every test that runs after it.
+    vi.mocked(zitadelModule.getUserByID).mockResolvedValue({
+      user: {
+        type: {
+          case: "human",
+          value: { email: { email: "test@example.com", isVerified: true } },
+        },
+      },
+    } as any);
+
     // Setup timestampDate mock to match actual behavior:
     // - Returns Invalid Date for malformed timestamps (empty object, invalid seconds)
     // - Throws for null/undefined
@@ -886,8 +901,14 @@ describe("isSessionValid", () => {
       expect(result).toBe(true);
     });
 
-    test("should return true when EMAIL_VERIFICATION is disabled", async () => {
-      // EMAIL_VERIFICATION is not set, so it's disabled by default
+    // VENHO FORK: upstream asserted the opposite here — that leaving
+    // EMAIL_VERIFICATION unset lets an unverified session through, and that
+    // getUserByID is skipped entirely. There is no off switch any more: a user
+    // who abandons /verify keeps a live session, and if that session validated,
+    // the gate on the way in would be worth nothing.
+    test("rejects an unverified session even with EMAIL_VERIFICATION unset", async () => {
+      delete process.env.EMAIL_VERIFICATION;
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const verifiedTimestamp = createMockTimestamp();
       const session = createMockSession({
@@ -916,11 +937,25 @@ describe("isSessionValid", () => {
 
       vi.mocked(verifyHelperModule.shouldEnforceMFA).mockReturnValue(false);
 
+      vi.mocked(zitadelModule.getUserByID).mockResolvedValue({
+        user: {
+          type: {
+            case: "human",
+            value: {
+              email: {
+                email: "test@example.com",
+                isVerified: false,
+              },
+            },
+          },
+        },
+      } as any);
+
       const result = await isSessionValid({ serviceConfig: { baseUrl: mockServiceUrl }, session });
 
-      expect(result).toBe(true);
-      // getUserByID should not be called when EMAIL_VERIFICATION is disabled
-      expect(zitadelModule.getUserByID).not.toHaveBeenCalled();
+      expect(result).toBe(false);
+      expect(zitadelModule.getUserByID).toHaveBeenCalled();
+      consoleSpy.mockRestore();
     });
   });
 
