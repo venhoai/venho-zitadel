@@ -2,7 +2,6 @@
 
 import { setTheme } from "@/helpers/colors";
 import { BrandingSettings, ThemeMode } from "@zitadel/proto/zitadel/settings/v2/branding_settings_pb";
-import { useTheme } from "next-themes";
 import { ReactNode, useEffect, useLayoutEffect } from "react";
 import { setThemeMode } from "./branding-context";
 
@@ -12,8 +11,6 @@ type Props = {
 };
 
 export const ThemeWrapper = ({ children, branding }: Props) => {
-  const { setTheme: setNextTheme } = useTheme();
-
   useEffect(() => {
     setTheme(document, branding);
   }, [branding]);
@@ -83,45 +80,16 @@ export const ThemeWrapper = ({ children, branding }: Props) => {
     setThemeMode(branding?.themeMode ?? ThemeMode.UNSPECIFIED);
   }, [branding?.themeMode]);
 
-  // Handle branding themeMode to force specific theme.
-  // Uses useLayoutEffect to apply before paint and writes the forced value
-  // to localStorage so next-themes doesn't fall back to system default.
-  useLayoutEffect(() => {
-    if (branding?.themeMode !== undefined) {
-      switch (branding.themeMode) {
-        case ThemeMode.LIGHT:
-          document.documentElement.classList.remove("dark");
-          try {
-            localStorage.setItem("cp-theme", "light");
-          } catch {
-            /* localStorage unavailable (e.g. private mode) */
-          }
-          setNextTheme("light");
-          break;
-        case ThemeMode.DARK:
-          document.documentElement.classList.add("dark");
-          try {
-            localStorage.setItem("cp-theme", "dark");
-          } catch {
-            /* localStorage unavailable (e.g. private mode) */
-          }
-          setNextTheme("dark");
-          break;
-        case ThemeMode.AUTO:
-          setNextTheme("system");
-          break;
-        // VENHO FORK: upstream lumps UNSPECIFIED in with AUTO and forces
-        // "system". UNSPECIFIED means the instance has expressed no preference,
-        // so forcing anything here would silently defeat the app's own default
-        // (dark — see ThemeProvider) on every instance that never set the field.
-        // AUTO above is a deliberate instance choice and still wins.
-        case ThemeMode.UNSPECIFIED:
-        default:
-          break;
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branding?.themeMode]);
+  // VENHO FORK: upstream reads the instance's branding themeMode here and
+  // forces light / dark / system from it. We do not: this app is dark-only
+  // (ThemeProvider sets `forcedTheme`), and honouring the field is exactly what
+  // broke it — the dev instance carries THEME_MODE_AUTO, which upstream maps to
+  // "system", so every visitor on a light OS was handed a white login page.
+  //
+  // Branding *colours* are still applied above, so an instance can restyle the
+  // login screens; it just cannot un-dark them. To hand the choice back to the
+  // instance, restore this block and drop `forcedTheme` from ThemeProvider —
+  // both, or the two disagree and the class flickers.
 
   return <div>{children}</div>;
 };

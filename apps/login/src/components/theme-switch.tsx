@@ -37,6 +37,13 @@ function getSelectedButtonStyle(isSelected: boolean): string {
   }
 }
 
+// VENHO FORK: the app is dark-only (see ThemeProvider), so there is nothing for
+// this control to switch between. Our layout does not render it; this guard is
+// for the case where an upstream merge puts it back into one. Everything below
+// is upstream's, kept intact so that merge stays a no-op — delete this early
+// return, not the component, if a light theme is ever designed.
+const VENHO_DARK_ONLY = true;
+
 export default function ThemeSwitch() {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
@@ -48,7 +55,7 @@ export default function ThemeSwitch() {
     setMounted(true);
   }, []);
 
-  if (!mounted) return null;
+  if (!mounted || VENHO_DARK_ONLY) return null;
 
   // Hide toggle when theme is forced to light or dark only
   if (themeMode === ThemeMode.LIGHT || themeMode === ThemeMode.DARK) {

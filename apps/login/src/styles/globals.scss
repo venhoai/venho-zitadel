@@ -18,6 +18,14 @@
 html {
   --background-color: #ffffff;
   --dark-background-color: #000000;
+
+  // VENHO FORK: a static dark ground, so the first paint is already dark.
+  // Every themed colour in this app is `var(--theme-*)`, and those variables
+  // are written by JS on mount (ThemeWrapper -> setTheme) — until then
+  // `dark:bg-background-dark-600` resolves to nothing and the page falls
+  // through to the UA canvas. This is `base-background` #0c111d from the
+  // designs, the same value the variables land on a moment later.
+  background-color: #0c111d;
 }
 
 .form-checkbox {

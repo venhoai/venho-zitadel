@@ -1,11 +1,11 @@
 import "@/styles/globals.scss";
 
 import { BackgroundWrapper } from "@/components/background-wrapper";
-import { BrandLogo } from "@/components/venho/brand-logo";
 import { LanguageProvider } from "@/components/language-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { Skeleton } from "@/components/skeleton";
 import { ThemeProvider } from "@/components/theme-provider";
+import { BrandLogo } from "@/components/venho/brand-logo";
 import { LANGS, getLanguage } from "@/lib/i18n";
 import { getServiceConfig } from "@/lib/service-url";
 import { getAllowedLanguages } from "@/lib/zitadel";
@@ -55,7 +55,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html className={`${geist.variable} ${manrope.variable} ${geist.className}`} suppressHydrationWarning>
+    // VENHO FORK: `dark` is set here, server-side, as well as by next-themes'
+    // pre-paint script (see ThemeProvider). Belt and braces on purpose — the
+    // class is then present in the very first byte of HTML, so there is no
+    // light flash before hydration and the page is still dark with JS disabled.
+    // `colorScheme` carries it into the UA's own chrome: form controls,
+    // scrollbars and autofill.
+    <html
+      className={`${geist.variable} ${manrope.variable} ${geist.className} dark`}
+      style={{ colorScheme: "dark" }}
+      suppressHydrationWarning
+    >
       <head />
       <body>
         <ThemeProvider>
@@ -93,9 +103,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <div className="relative mx-auto w-full max-w-[1100px] px-4 pt-[140px] pb-8">
                     <div>{children}</div>
 
-                    {/* Language stays available but out of the way. The theme
-                        switch is gone: the instance pins THEME_MODE_DARK and no
-                        light screens were designed. */}
+                    {/* Language stays available but out of the way. There is
+                        no theme switch: the app is dark-only (ThemeProvider
+                        forces it), and no light screens were designed. */}
                     <div className="mx-auto mt-8 flex max-w-[380px] flex-row items-center justify-center px-4">
                       <LanguageSwitcher languages={languages} />
                     </div>

@@ -66,13 +66,51 @@ a colour tweak needs no redeploy.
   *fallbacks*: the console's branding settings are the source of truth and carry
   the same values. Keeping both in step means a failed settings fetch degrades to
   Venho colours rather than ZITADEL blue mid-sign-in.
-- `apps/login/src/components/theme-provider.tsx` — `defaultTheme` is `dark`
-  (upstream: `system`). Every designed screen is dark, as is the app being signed
-  into.
-- `apps/login/src/components/theme-wrapper.tsx` — branding `themeMode`
-  `UNSPECIFIED` no longer forces `system`. Upstream lumps it in with `AUTO`,
-  which would defeat the dark default on any instance that never set the field.
-  An explicit `AUTO` still wins.
+- `apps/login/src/components/theme-provider.tsx` — `forcedTheme="dark"`
+  (upstream: switchable, defaulting to `system`). Every designed screen is dark,
+  as is the app being signed into, so dark is the *only* theme here rather than a
+  default. `forcedTheme` short-circuits next-themes' pre-paint script, so neither
+  the visitor's OS preference nor a stored value is ever read. The storage key is
+  `venho-theme`, not upstream's `cp-theme`: nothing writes to it any more, and a
+  stale `cp-theme` would otherwise still surface in `resolvedTheme` — which
+  `forcedTheme` does **not** override — and hand `<Avatar>` the light palette on
+  a dark page.
+- `apps/login/src/components/theme-wrapper.tsx` — the branding `themeMode` block
+  is gone. Branding *colours* are still applied; the instance can restyle the
+  login screens, it just cannot un-dark them.
+- `apps/login/src/app/(login)/layout.tsx` — `<html>` carries `dark` and
+  `color-scheme: dark` server-side too, so the class is in the first byte of
+  HTML: no light flash before hydration, and still dark with JS off.
+- `apps/login/src/app/global-error.tsx` — replaces the root layout entirely, so
+  it gets neither the provider nor the class; it sets both itself, with literal
+  hex rather than `var(--theme-*)` (those variables do not exist until
+  `ThemeWrapper` runs).
+- `apps/login/src/styles/globals.scss` — a static `#0c111d` on `html`, for the
+  same reason: every themed colour is `var(--theme-*)`, written by JS on mount.
+- `apps/login/src/components/theme-switch.tsx` — returns `null`. Our layout does
+  not render it; the guard is for the case where a merge puts it back.
+
+#### Why this is in code and not in the console
+
+It was in the console, and that was the bug. The app followed the instance's
+branding `themeMode`; the **local** instance was seeded `THEME_MODE_DARK` and the
+**dev** instance carries `THEME_MODE_AUTO`, which upstream maps to `"system"`.
+So every visitor on a light OS got a white login page while local testing looked
+perfect — a difference no amount of testing against localhost could show. The
+app's own appearance must not hinge on a console field that nothing in this repo
+sets.
+
+To hand the choice back to an instance, restore the `themeMode` block in
+`ThemeWrapper` *and* drop `forcedTheme` from `ThemeProvider` — both, or the two
+disagree and the class flickers.
+
+`apps/login/src/components/theme-provider.test.tsx` is the net under all of
+this — it runs in `pnpm test-unit`, uses the real next-themes rather than a mock
+(what is being asserted *is* next-themes' behaviour under our props), and covers
+a light OS preference, a stale `cp-theme`, and every `themeMode` an instance can
+send, `THEME_MODE_LIGHT` included. Verified against a browser as well: dark under
+a light OS preference, with JS disabled, and from the standalone production
+build, with the instance pinned to `THEME_MODE_LIGHT`.
 - `apps/login/.env` — the structural knobs (`NEXT_PUBLIC_THEME_*`) are pinned to
   the designed values instead of relying on `DEFAULT_THEME`.
 
