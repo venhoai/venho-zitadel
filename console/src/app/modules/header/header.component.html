@@ -7,11 +7,11 @@
     } @else {
       @if (authService.labelpolicy$ | async; as lP) {
         <a class="title custom" [routerLink]="['/']">
-          <img class="logo" alt="Venho home" src="./assets/images/venho-email-thumbnail.jpg" />
+          <img class="logo" alt="Venho home" src="./assets/images/venho-email-thumbnail.png" />
         </a>
       } @else {
         <a class="title" [routerLink]="(authService.zitadelPermissions | async)?.length ? ['/'] : ['/users', 'me']">
-          <img class="logo" alt="Venho home" src="./assets/images/venho-email-thumbnail.jpg" />
+          <img class="logo" alt="Venho home" src="./assets/images/venho-email-thumbnail.png" />
         </a>
       }
     }
