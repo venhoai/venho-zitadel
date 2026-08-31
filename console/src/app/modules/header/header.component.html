@@ -7,29 +7,11 @@
     } @else {
       @if (authService.labelpolicy$ | async; as lP) {
         <a class="title custom" [routerLink]="['/']">
-          @if (isDarkTheme) {
-            <img
-              class="logo"
-              alt="home logo"
-              [src]="lP.iconUrlDark ? lP.iconUrlDark : './assets/images/zitadel-logo-solo-light.svg'"
-              (error)="errorHandler($event, './assets/images/zitadel-logo-solo-light.svg')"
-            />
-          } @else {
-            <img
-              alt="home logo"
-              class="logo"
-              [src]="lP.iconUrl ? lP.iconUrl : './assets/images/zitadel-logo-solo-dark.svg'"
-              (error)="errorHandler($event, './assets/images/zitadel-logo-solo-dark.svg')"
-            />
-          }
+          <img class="logo" alt="Venho home" src="./assets/images/venho-email-thumbnail.jpg" />
         </a>
       } @else {
         <a class="title" [routerLink]="(authService.zitadelPermissions | async)?.length ? ['/'] : ['/users', 'me']">
-          @if (isDarkTheme) {
-            <img class="logo" alt="zitadel logo" src="./assets/images/zitadel-logo-solo-light.svg" />
-          } @else {
-            <img alt="zitadel logo" class="logo" src="./assets/images/zitadel-logo-solo-dark.svg" />
-          }
+          <img class="logo" alt="Venho home" src="./assets/images/venho-email-thumbnail.jpg" />
         </a>
       }
     }
@@ -166,11 +148,6 @@
       @if (pP.customLink) {
         <a class="custom-link" href="{{ pP.customLink }}" mat-stroked-button target="_blank">
           {{ pP.customLinkText }}
-        </a>
-      }
-      @if (pP.docsLink) {
-        <a class="doc-link" href="{{ pP.docsLink }}" mat-stroked-button target="_blank">
-          {{ 'MENU.DOCUMENTATION' | translate }}
         </a>
       }
     }

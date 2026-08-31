@@ -1,6 +1,5 @@
 import { Component } from '@angular/core';
 import { GrpcAuthService } from 'src/app/services/grpc-auth.service';
-import { faXTwitter } from '@fortawesome/free-brands-svg-icons';
 
 @Component({
   selector: 'cnsl-footer',
@@ -9,6 +8,5 @@ import { faXTwitter } from '@fortawesome/free-brands-svg-icons';
   standalone: false,
 })
 export class FooterComponent {
-  public faXTwitter = faXTwitter;
   constructor(public authService: GrpcAuthService) {}
 }
