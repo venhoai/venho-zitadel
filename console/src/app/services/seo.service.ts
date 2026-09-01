@@ -10,15 +10,15 @@ export class SeoService {
   public generateTags(config: any): void {
     // default values
     config = {
-      title: 'ZITADEL Management Console',
-      description: 'Managementplatform for ZITADEL',
-      image: 'https://www.zitadel.com/images/preview.png',
+      title: 'Venho Management Console',
+      description: 'Management console for Venho authentication',
+      image: './assets/images/venho-email-thumbnail.png',
       slug: '',
       ...config,
     };
 
     this.meta.updateTag({ property: 'og:type', content: 'website' });
-    this.meta.updateTag({ property: 'og:site_name', content: 'ZITADEL Management Console' });
+    this.meta.updateTag({ property: 'og:site_name', content: 'Venho Management Console' });
     this.meta.updateTag({ property: 'og:title', content: config.title });
     this.meta.updateTag({ property: 'description', content: config.description });
     this.meta.updateTag({ property: 'og:description', content: config.description });
@@ -27,9 +27,8 @@ export class SeoService {
     }
 
     this.meta.updateTag({ property: 'twitter:card', content: 'summary' });
-    this.meta.updateTag({ property: 'og:site', content: '@zitadel_ch' });
     this.meta.updateTag({ property: 'og:title', content: config.title });
-    this.meta.updateTag({ property: 'og:image', content: 'https://www.zitadel.com/images/preview.png' });
+    this.meta.updateTag({ property: 'og:image', content: config.image });
     this.meta.updateTag({ property: 'og:description', content: config.description });
   }
 }
