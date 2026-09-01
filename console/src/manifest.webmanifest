@@ -1,6 +1,6 @@
 {
-  "name": "console",
-  "short_name": "console",
+  "name": "Venho Management Console",
+  "short_name": "Venho Console",
   "theme_color": "#1976d2",
   "background_color": "#fafafa",
   "display": "standalone",
@@ -8,18 +8,18 @@
   "start_url": "/",
   "icons": [
     {
-      "src": "assets/icons/android-chrome-512x512.png",
-      "sizes": "512x512",
+      "src": "assets/images/venho-email-thumbnail.png",
+      "sizes": "400x400",
       "type": "image/png"
     },
     {
-      "src": "assets/icons/android-chrome-192x192.png",
-      "sizes": "192x192",
+      "src": "assets/images/venho-email-thumbnail.png",
+      "sizes": "400x400",
       "type": "image/png"
     },
     {
-      "src": "assets/icons/apple-touch-icon.png",
-      "sizes": "180x180",
+      "src": "assets/images/venho-email-thumbnail.png",
+      "sizes": "400x400",
       "type": "image/png"
     }
   ]
