@@ -99,6 +99,16 @@ export default async function Page(props: {
     if (method && ["email", "sms"].includes(method)) {
       return redirect(urlToContinue);
     }
+  } else if (requestId?.startsWith("device_")) {
+    // VENHO FORK: a device grant completes on /signedin, never on /login. The
+    // /login route rejects a device_ requestId outright (400 —
+    // "Device authorization should use /device endpoint"), and the /accounts
+    // default below would drop the requestId and strand the grant with no way
+    // to finish it. /signedin knows how to complete a device request from the
+    // session cookie and then shows the terminal panel, so first-time device
+    // sign-ins that have to enrol a factor here still land somewhere real.
+    paramsToContinue.append("requestId", requestId);
+    urlToContinue = `/signedin?` + paramsToContinue;
   } else if (requestId && sessionId) {
     if (requestId) {
       paramsToContinue.append("authRequest", requestId);
