@@ -8,9 +8,10 @@ import { useState } from "react";
  * VENHO FORK — the action on a terminal page whose only remaining job is to get
  * out of the user's way.
  *
- * The device grant ends in the browser, but the thing the user was doing is on
- * the device that sent them here. Without an action the page is a dead end they
- * have to work out how to leave; "Continue" gives the moment an ending.
+ * Used on every page where a flow stops in the browser and the user's attention
+ * belongs elsewhere: the approved device grant, a sign-in with no application to
+ * return to, and a completed logout. Without an action each is a dead end the
+ * user has to work out how to leave; "Continue" gives the moment an ending.
  *
  * It cannot promise to close. `window.close()` is only honoured for a window
  * script opened — the `window.open` path a QR scan or an in-app browser may
@@ -45,12 +46,17 @@ export function CloseWindowButton() {
         className="h-[40px] w-full justify-center"
         onClick={close}
       >
-        <Translated i18nKey="device.continue" namespace="signedin" />
+        {/* Upstream's own "Continue", translated in every locale ZITADEL
+            ships. Reused rather than claimed in locales/venho/ so the button
+            is not the one English word on a Portuguese page — the key reads
+            oddly on /logout/done, but that is a maintainer's problem and a
+            missing translation is the user's. */}
+        <Translated i18nKey="continue" namespace="signedin" />
       </Button>
 
       {blocked && (
         <p className="ztdl-p max-w-[304px] text-center" data-testid="close-blocked">
-          <Translated i18nKey="device.closeBlocked" namespace="signedin" />
+          <Translated i18nKey="closeBlocked" namespace="common" />
         </p>
       )}
     </div>

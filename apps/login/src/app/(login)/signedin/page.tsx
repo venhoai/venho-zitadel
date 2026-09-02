@@ -133,8 +133,15 @@ export default async function Page(props: { searchParams: Promise<any> }) {
         />
       </div>
 
+      {/* VENHO FORK: the two endings this page can have, and it always had
+          only one of them. With somewhere to go, Continue is a LINK and the
+          flow carries on in the browser — upstream's behaviour, untouched.
+          With nowhere to go (resolveRedirectUri falls back to /signedin
+          itself, so `isSamePage` is the common case for a plain sign-in) the
+          page was a dead end: a welcome message, an avatar, and no way out.
+          It now gets the same terminal action as the device grant. */}
       <div className="w-full">
-        {redirectUri && !isSamePage && (
+        {redirectUri && !isSamePage ? (
           <div className="mt-8 flex w-full flex-row items-center">
             <span className="flex-grow"></span>
 
@@ -143,6 +150,10 @@ export default async function Page(props: { searchParams: Promise<any> }) {
                 <Translated i18nKey="continue" namespace="signedin" />
               </Button>
             </Link>
+          </div>
+        ) : (
+          <div className="mt-8 w-full">
+            <CloseWindowButton />
           </div>
         )}
       </div>

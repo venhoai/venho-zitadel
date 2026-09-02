@@ -1,5 +1,6 @@
 import { DynamicTheme } from "@/components/dynamic-theme";
 import { Translated } from "@/components/translated";
+import { CloseWindowButton } from "@/components/venho/close-window-button";
 import { getServiceConfig } from "@/lib/service-url";
 import { getBrandingSettings } from "@/lib/zitadel";
 import { headers } from "next/headers";
@@ -24,7 +25,12 @@ export default async function Page(props: { searchParams: Promise<any> }) {
           <Translated i18nKey="success.description" namespace="logout" />
         </p>
       </div>
-      <div className="w-full"></div>
+      {/* VENHO FORK: upstream ends the logout flow on an empty action slot —
+          a success message with nothing to press. Same terminal action as the
+          other two endings. */}
+      <div className="w-full">
+        <CloseWindowButton />
+      </div>
     </DynamicTheme>
   );
 }

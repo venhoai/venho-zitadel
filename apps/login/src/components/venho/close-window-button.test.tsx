@@ -32,6 +32,13 @@ describe("CloseWindowButton", () => {
     vi.restoreAllMocks();
   });
 
+  test("labels itself with upstream's translated Continue, not a new string", () => {
+    // locales/venho/ claims only the blocked hint. Claiming "Continue" would
+    // have cost the translation ZITADEL already ships in every locale.
+    const { getByTestId } = render(<CloseWindowButton />);
+    expect(getByTestId("continue-button").textContent).toContain("continue");
+  });
+
   test("asks the browser to close, and says nothing while it might still work", async () => {
     const close = vi.spyOn(window, "close").mockImplementation(() => {});
     // A close that succeeds takes the page with it; the honest signal for the
@@ -57,7 +64,7 @@ describe("CloseWindowButton", () => {
     getByTestId("continue-button").click();
 
     await waitFor(() => expect(getByTestId("close-blocked")).toBeTruthy());
-    expect(getByTestId("close-blocked").textContent).toContain("device.closeBlocked");
+    expect(getByTestId("close-blocked").textContent).toContain("closeBlocked");
   });
 
   test("survives a browser that throws instead of declining", async () => {
