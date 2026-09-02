@@ -14,10 +14,22 @@ export function StatusPanel({
   icon: Icon,
   title,
   description,
+  action,
 }: {
   icon: LucideIcon;
   title: ReactNode;
   description: ReactNode;
+  /**
+   * A single full-width action under the copy — the way out of a page that has
+   * nowhere left to go. Optional: a terminal state is still a valid one with no
+   * action at all, and a panel that invented a button for every caller would be
+   * back to guessing what the flow wants next.
+   *
+   * Separated from the copy by 32px rather than the 12px that binds the
+   * heading to its description, so it reads as a decision and not as a third
+   * line of text.
+   */
+  action?: ReactNode;
 }) {
   return (
     <div className="flex w-full flex-col items-center gap-[20px]" data-testid="status-panel">
@@ -30,6 +42,7 @@ export function StatusPanel({
           {description}
         </p>
       </div>
+      {action ? <div className="mt-[12px] flex w-full flex-col items-center">{action}</div> : null}
     </div>
   );
 }

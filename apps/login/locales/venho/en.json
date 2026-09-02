@@ -27,7 +27,9 @@
   "signedin": {
     "device": {
       "title": "Authorization approved",
-      "description": "You're all set. You can now return to the app to continue."
+      "description": "You're all set. You can now return to the app to continue.",
+      "continue": "Continue",
+      "closeBlocked": "Your browser wouldn't let this page close itself. You can close this tab and return to the app."
     }
   },
   "loginname": {

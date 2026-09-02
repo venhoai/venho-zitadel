@@ -6,6 +6,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { resolveRedirectUri } from "@/lib/client";
 import { getMostRecentCookieWithLoginname, getSessionCookieById } from "@/lib/cookies";
 import { completeDeviceAuthorization } from "@/lib/server/device";
+import { CloseWindowButton } from "@/components/venho/close-window-button";
 import { StatusPanel } from "@/components/venho/status-panel";
 import { Check } from "lucide-react";
 import { getServiceConfig } from "@/lib/service-url";
@@ -108,6 +109,7 @@ export default async function Page(props: { searchParams: Promise<any> }) {
           icon={Check}
           title={<Translated i18nKey="device.title" namespace="signedin" />}
           description={<Translated i18nKey="device.description" namespace="signedin" />}
+          action={<CloseWindowButton />}
         />
       </DynamicTheme>
     );
