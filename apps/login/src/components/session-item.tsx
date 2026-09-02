@@ -1,7 +1,6 @@
 "use client";
 
 import { handleServerActionResponse } from "@/lib/client-utils";
-import { sendLoginname } from "@/lib/server/loginname";
 import { clearSession, continueWithSession, ContinueWithSessionCommand } from "@/lib/server/session";
 import { XCircleIcon } from "@heroicons/react/24/outline";
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -31,7 +30,25 @@ export function isSessionPrimaryFactorAndLifetimeValid(session: Partial<Session>
   return { valid, verifiedAt };
 }
 
-export function SessionItem({ session, reload, requestId }: { session: Session; reload: () => void; requestId?: string }) {
+export function SessionItem({
+  session,
+  reload,
+  requestId,
+  serverValid,
+}: {
+  session: Session;
+  reload: () => void;
+  requestId?: string;
+  /**
+   * Server-computed validity (the same `isSessionValid` gate the flow uses:
+   * primary factor + expiry + MFA + email verification). When present it drives
+   * the status dot so the indicator cannot disagree with what happens on click.
+   * The client-only `isSessionPrimaryFactorAndLifetimeValid` cannot see MFA or
+   * email verification — those need a server round-trip — so it over-reports
+   * "valid"; without this the dot was green for accounts the gate then bounced.
+   */
+  serverValid?: boolean;
+}) {
   const currentLocale = useLocale();
   moment.locale(currentLocale === "zh" ? "zh-cn" : currentLocale);
 
@@ -53,7 +70,10 @@ export function SessionItem({ session, reload, requestId }: { session: Session; 
     return response;
   }
 
-  const { valid, verifiedAt } = isSessionPrimaryFactorAndLifetimeValid(session);
+  const { valid: clientValid, verifiedAt } = isSessionPrimaryFactorAndLifetimeValid(session);
+  // The dot reflects the server gate when we have it; the client estimate is
+  // only a fallback for callers that don't compute validity server-side.
+  const valid = serverValid ?? clientValid;
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
   const [_error, setError] = useState<string | null>(null);
@@ -66,30 +86,30 @@ export function SessionItem({ session, reload, requestId }: { session: Session; 
       <Tooltip.Trigger asChild>
         <button
           onClick={async () => {
-            if (valid && session?.factors?.user) {
+            if (!session.factors?.user) {
+              return;
+            }
+            // Always go through continueWithSession, regardless of the dot. It
+            // re-checks validity server-side and, when the session cannot
+            // complete the flow, re-authenticates the user (routing to
+            // password / MFA / verify, or falling back to /loginname). Clicking
+            // an account therefore always advances — the old branch that called
+            // sendLoginname directly for "invalid" tiles is now the server
+            // action's own fallback, so the two can no longer disagree.
+            setLoading(true);
+            try {
               const sessionPayload: ContinueWithSessionCommand = session;
               if (requestId) {
                 sessionPayload.requestId = requestId;
               }
 
-              const callbackResponse = await continueWithSession(sessionPayload);
+              const res = await continueWithSession(sessionPayload);
 
-              handleServerActionResponse(callbackResponse, router, setSamlData, (e) => setError(e));
-            } else if (session.factors?.user) {
-              setLoading(true);
-              try {
-                const res = await sendLoginname({
-                  loginName: session.factors?.user?.loginName,
-                  organization: session.factors.user.organizationId,
-                  requestId: requestId,
-                });
-
-                handleServerActionResponse(res, router, setSamlData, (e) => setError(e));
-              } catch {
-                setError("An internal error occurred");
-              } finally {
-                setLoading(false);
-              }
+              handleServerActionResponse(res, router, setSamlData, (e) => setError(e));
+            } catch {
+              setError("An internal error occurred");
+            } finally {
+              setLoading(false);
             }
           }}
           className="group border-divider-light bg-background-light-400 dark:bg-background-dark-400 flex flex-row items-center rounded-md border px-4 py-2 transition-all hover:shadow-lg dark:hover:bg-white/10"

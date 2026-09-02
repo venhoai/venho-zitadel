@@ -110,7 +110,27 @@ export async function continueWithSession({ requestId, ...session }: ContinueWit
       return { samlData: res.samlData };
     }
 
-    return { error: t("couldNotContinueSession") };
+    // VENHO FORK: never dead-end on the account picker. sendLoginname can decline
+    // to produce a redirect for a known account — duplicate/aliased logins
+    // (moreThanOneUserFound), an IDP-only user whose IDP flow could not start,
+    // localAuthentication disabled with no IDP, or an INITIAL-state user — and
+    // upstream surfaced that only as a tiny inline <Alert>, leaving the user
+    // staring at a list of accounts none of which visibly do anything (the
+    // "user list with no continue button" report). Fall back to /loginname so
+    // there is always a way forward: the user re-identifies and the normal flow
+    // (password / MFA / verify) takes it from there.
+    const params = new URLSearchParams();
+    if (session.factors.user.loginName) {
+      params.set("loginName", session.factors.user.loginName);
+    }
+    if (session.factors.user.organizationId) {
+      params.set("organization", session.factors.user.organizationId);
+    }
+    if (requestId) {
+      params.set("requestId", requestId);
+    }
+
+    return { redirect: "/loginname?" + params.toString() };
   }
 
   if (requestId && session.id) {

@@ -3,6 +3,7 @@ import { SessionsList } from "@/components/sessions-list";
 import { Translated } from "@/components/translated";
 import { getAllSessionCookieIds } from "@/lib/cookies";
 import { getServiceConfig } from "@/lib/service-url";
+import { isSessionValid } from "@/lib/session";
 import { getBrandingSettings, getDefaultOrg, listSessions, ServiceConfig } from "@/lib/zitadel";
 import { UserPlusIcon } from "@heroicons/react/24/outline";
 import { Organization } from "@zitadel/proto/zitadel/org/v2/org_pb";
@@ -58,6 +59,28 @@ export default async function Page(props: { searchParams: Promise<Record<string 
 
   let sessions = await loadSessions({ serviceConfig, organization });
 
+  // VENHO FORK: compute each session's real validity here, on the server, with
+  // the same `isSessionValid` gate the flow uses (primary factor + expiry + MFA
+  // + email verification). The account tiles are a client component and cannot
+  // run that gate — it needs the session token and extra API calls — so without
+  // this they fell back to a client-only estimate that ignores MFA and email
+  // verification and painted "valid" (green) for accounts the flow then bounced.
+  // Passing the truth down makes the status dot honest and lets the picker offer
+  // an explicit "Continue as" for an account that can actually proceed.
+  const validityEntries = await Promise.all(
+    sessions.map(async (session) => {
+      try {
+        return [session.id, await isSessionValid({ serviceConfig, session })] as const;
+      } catch {
+        // A validity probe that errors (stale token, transient API failure) must
+        // not blank the whole picker — treat that one session as not-valid; its
+        // tile still re-authenticates on click.
+        return [session.id, false] as const;
+      }
+    }),
+  );
+  const validityById: Record<string, boolean> = Object.fromEntries(validityEntries);
+
   const branding = await getBrandingSettings({ serviceConfig, organization: organization ?? defaultOrganization });
 
   const params = new URLSearchParams();
@@ -87,7 +110,7 @@ export default async function Page(props: { searchParams: Promise<Record<string 
 
       <div className="w-full">
         <div className="flex w-full flex-col space-y-2">
-          <SessionsList sessions={sessions} requestId={requestId} />
+          <SessionsList sessions={sessions} requestId={requestId} validityById={validityById} />
           <Link href={`/loginname?` + params}>
             <div className="flex flex-row items-center rounded-md px-4 py-3 transition-all hover:bg-black/10 dark:hover:bg-white/10">
               <div className="mr-4 flex h-8 w-8 flex-row items-center justify-center rounded-full bg-black/5 dark:bg-white/5">

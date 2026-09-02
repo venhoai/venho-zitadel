@@ -83,7 +83,8 @@
   "accounts": {
     "title": "Log in",
     "description": "Choose an Account to log in with.",
-    "addAnother": "Add another Account"
+    "addAnother": "Add another Account",
+    "continueAs": "Continue as {name}"
   },
   "mfa": {
     "set": {
