@@ -28,12 +28,18 @@ export function AuthenticationMethodRadio({
                 key={method}
                 value={method}
                 data-testid={method + "-radio"}
+                // VENHO FORK: the raised background is the *emphasis* state, so
+                // it belongs to checked and hover only. Upstream painted it on
+                // every tile and then used `hover:bg-white/10` on top, which
+                // inverted the signal: resting tiles looked selected and
+                // hovering one made it recede. Unselected tiles now sit at the
+                // same weight as the form's text inputs.
                 className={({ focus, checked }) =>
                   `${focus ? "ring-primary-light-500/60 ring-2 dark:ring-white/20" : ""} ${
                     checked
-                      ? "bg-background-light-400 ring-primary-light-500 dark:bg-background-dark-400 dark:ring-primary-dark-500 ring-2"
-                      : "bg-background-light-400 dark:bg-background-dark-400"
-                  } boder-divider-light dark:border-divider-dark relative flex h-full flex-1 cursor-pointer rounded-lg border px-5 py-4 hover:shadow-lg focus:outline-none dark:hover:bg-white/10`
+                      ? "bg-background-light-400 ring-primary-light-500 dark:bg-background-dark-400 dark:ring-primary-dark-500 border-transparent ring-2"
+                      : "bg-input-light-background border-input-light-border hover:bg-background-light-400 dark:bg-input-dark-background dark:border-input-dark-border dark:hover:bg-background-dark-400"
+                  } relative flex h-full flex-1 cursor-pointer rounded-lg border px-5 py-4 transition-colors hover:shadow-lg focus:outline-none`
                 }
               >
                 <div className="flex w-full flex-col items-center text-sm">
