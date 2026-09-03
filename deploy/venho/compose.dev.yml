@@ -16,6 +16,38 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: venho-admin-sa
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Venho local admin
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
+      # Mail delivery to the Mailpit catcher below, seeded AT INSTANCE CREATION
+      # (setupSMTPSettings adds AND activates it — internal/command/instance.go).
+      # Email verification is mandatory on every sign-up path, so without this a
+      # fresh stack cannot complete a sign-up. These vars only act on first boot;
+      # for a database that already exists, run ../venho/seed-smtp.sh once.
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: zitadel-mailpit:1025
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_TLS: "false"
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: noreply@venho.localhost
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: Venho
+    depends_on:
+      mailpit:
+        condition: service_started
+
+  # Local SMTP catcher. Email verification is mandatory on every sign-up path
+  # (see VENHO.md), so an instance with no mail delivery cannot complete a
+  # sign-up: SendEmailCode succeeds at the API, then the notification handler
+  # dies with "could not create email channel … SMTPConfig.NotFound" and the
+  # user waits on /verify for a mail that never comes. Mailpit receives
+  # everything at zitadel-mailpit:1025 and shows it at http://localhost:8025.
+  #
+  # The instance does NOT pick this up by itself — SMTP provider config lives
+  # in the database, and ZITADEL_DEFAULTINSTANCE_* only applies at instance
+  # creation. Run ../venho/seed-smtp.sh once after first boot (idempotent).
+  mailpit:
+    image: axllent/mailpit:v1.31.0
+    container_name: zitadel-mailpit # the seeded provider host is pinned to this name
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025" # web UI + API
+      - "127.0.0.1:1025:1025" # SMTP, for anything else running on the host
+    networks:
+      - zitadel
 
 # NOTE: this overlay deliberately does NOT start `zitadel-login`. The login app
 # runs from source on :3000 (`pnpm --filter @zitadel/login dev`) so changes are

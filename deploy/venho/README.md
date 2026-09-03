@@ -36,6 +36,50 @@ ZITADEL_API_URL=http://localhost:8080 ZITADEL_API_DOMAIN=localhost \
   ZITADEL_ADMIN_TOKEN=<admin.pat> apps/login/scripts/venho-branding.sh
 ```
 
+Then seed SMTP — email verification is mandatory on every sign-up path, and
+provider config lives in the **database** (`ZITADEL_DEFAULTINSTANCE_*` only
+applies at instance creation), so a stack without this step cannot complete a
+sign-up: `SendEmailCode` returns 200, the notification handler logs
+`could not create email channel … SMTPConfig.NotFound`, and the user waits on
+`/verify` forever while the UI claims a code was sent. The overlay starts a
+[Mailpit](https://mailpit.axllent.org/) catcher; point the instance at it once:
+
+```sh
+../venho/seed-smtp.sh     # idempotent; uses the admin PAT from the volume
+```
+
+Every mail the instance sends then appears at <http://localhost:8025> —
+verification codes included, so the full sign-up flow is testable end to end.
+
+The same script points any other instance at a real relay — nothing in it is
+Mailpit-specific except the defaults:
+
+```sh
+ZITADEL_API_URL=https://auth.dev.venho.ai ZITADEL_ADMIN_TOKEN=<pat> \
+  SMTP_HOST=smtp.example.net:587 SMTP_TLS=true \
+  SMTP_SENDER=noreply@venho.ai SMTP_SENDER_NAME=Venho \
+  SMTP_USER=<relay user> SMTP_PASSWORD=<secret> \
+  ../venho/seed-smtp.sh
+```
+
+## Testing the sign-up flows
+
+Two Playwright specs in `deploy/compose/tests/` drive real browsers against this
+stack and assert the mail actually lands in Mailpit — the only assertion that
+catches a send that failed, since every API call on the way returns 200:
+
+```sh
+cd ../compose
+PLAYWRIGHT_CHANNEL=chrome npx playwright test tests/signup-email.spec.ts
+PLAYWRIGHT_CHANNEL=chrome npx playwright test tests/device-signup-email.spec.ts
+```
+
+`signup-email` covers plain registration. `device-signup-email` covers the path
+with live users: it mints a real RFC 8628 device authorization, walks consent →
+sign-up → `/verify`, and finishes by redeeming the device code for tokens.
+`PLAYWRIGHT_CHANNEL=chrome` uses the system browser, for hosts where playwright
+cannot install its own chromium.
+
 Finally `pnpm --filter @zitadel/login dev` and open
 <http://localhost:3000/ui/v2/login/loginname>.
 
