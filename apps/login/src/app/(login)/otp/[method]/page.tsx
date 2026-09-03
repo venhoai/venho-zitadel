@@ -3,7 +3,7 @@ import { DynamicTheme } from "@/components/dynamic-theme";
 import { LoginOTP } from "@/components/login-otp";
 import { Translated } from "@/components/translated";
 import { UserAvatar } from "@/components/user-avatar";
-import { getSessionCookieById } from "@/lib/cookies";
+import { getMostRecentCookieWithLoginname, getSessionCookieById } from "@/lib/cookies";
 import { getPublicHost } from "@/lib/server/host";
 import { getServiceConfig } from "@/lib/service-url";
 import { loadMostRecentSession } from "@/lib/session";
@@ -41,6 +41,18 @@ export default async function Page(props: {
   const session = sessionId
     ? await loadSessionById(sessionId, organization)
     : await loadMostRecentSession({ serviceConfig, sessionParams: { loginName, organization } });
+
+  // VENHO FORK: a device_ requestId cannot travel in the OTP mail — ZITADEL caps
+  // the link template at 200 runes and the id alone is ~264 (lib/url-template.ts)
+  // — so a user who arrives by clicking the link has none in the URL. The session
+  // cookie kept it; recover it, or accepting the code strands the device grant.
+  let resolvedRequestId = requestId;
+  if (!resolvedRequestId) {
+    const cookie = sessionId
+      ? await getSessionCookieById({ sessionId, organization })
+      : await getMostRecentCookieWithLoginname({ loginName, organization });
+    resolvedRequestId = cookie?.requestId;
+  }
 
   async function loadSessionById(sessionId: string, organization?: string) {
     const recent = await getSessionCookieById({ sessionId, organization });
@@ -112,7 +124,7 @@ export default async function Page(props: {
           <LoginOTP
             loginName={loginName ?? session.factors?.user?.loginName}
             sessionId={sessionId}
-            requestId={requestId}
+            requestId={resolvedRequestId}
             organization={organization ?? session?.factors?.user?.organizationId}
             method={method}
             loginSettings={loginSettings}

@@ -3,6 +3,7 @@
 import { completeFlowOrGetUrl } from "@/lib/client";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { updateOrCreateSession } from "@/lib/server/session";
+import { appendRequestIdToUrlTemplate } from "@/lib/url-template";
 import { create } from "@zitadel/client";
 import { RequestChallengesSchema } from "@zitadel/proto/zitadel/session/v2/challenge_pb";
 import { ChecksSchema } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
@@ -11,13 +12,12 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Alert, AlertType } from "./alert";
 import { AutoSubmitForm } from "./auto-submit-form";
 import { BackButton } from "./back-button";
 import { Button, ButtonVariants } from "./button";
-import { CodeInput } from "./venho/code-input";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
+import { CodeInput } from "./venho/code-input";
 
 // either loginName or sessionId must be provided
 type Props = {
@@ -68,9 +68,16 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
             case: "sendCode",
             value: host
               ? {
-                  urlTemplate:
-                    `${host.includes("localhost") ? "http://" : "https://"}${host}${basePath}/otp/${method}?code={{.Code}}&userId={{.UserID}}&sessionId={{.SessionID}}` +
-                    (requestId ? `&requestId=${requestId}` : ""),
+                  // VENHO FORK: ZITADEL caps this template at 200 runes, the same
+                  // as the verification mail (see lib/url-template.ts). A device_
+                  // requestId is a ~264-rune JWE, so appending it made the whole
+                  // challenge fail with InvalidArgument and no OTP mail was ever
+                  // sent. /otp/[method] recovers the requestId from the session
+                  // cookie instead of carrying it in the link.
+                  urlTemplate: appendRequestIdToUrlTemplate(
+                    `${host.includes("localhost") ? "http://" : "https://"}${host}${basePath}/otp/${method}?code={{.Code}}&userId={{.UserID}}&sessionId={{.SessionID}}`,
+                    requestId,
+                  ),
                 }
               : {},
           },

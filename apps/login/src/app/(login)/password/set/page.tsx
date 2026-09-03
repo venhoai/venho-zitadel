@@ -4,6 +4,7 @@ import { SetPasswordForm } from "@/components/set-password-form";
 import { Translated } from "@/components/translated";
 import { UserAvatar } from "@/components/user-avatar";
 import { UNKNOWN_USER_ID } from "@/lib/constants";
+import { getMostRecentCookieWithLoginname } from "@/lib/cookies";
 import { getServiceConfig } from "@/lib/service-url";
 import { loadMostRecentSession } from "@/lib/session";
 import {
@@ -98,6 +99,17 @@ export default async function Page(props: { searchParams: Promise<Record<string 
       // Prevent enumeration by pretending we found a user
       userId = UNKNOWN_USER_ID;
     }
+  }
+
+  // VENHO FORK: the reset mail cannot carry a device_ requestId (200-rune cap —
+  // see lib/url-template.ts), so the link lands here without one and the flow
+  // that sent the user to reset their password would be dropped on success. The
+  // session cookie kept it. Keyed on the login name we resolved, so it cannot
+  // pick up a different account's flow, and skipped entirely without one.
+  const knownLoginName = loginName ?? user?.preferredLoginName;
+  if (!requestId && knownLoginName) {
+    const cookie = await getMostRecentCookieWithLoginname({ loginName: knownLoginName, organization });
+    requestId = cookie?.requestId;
   }
 
   return (

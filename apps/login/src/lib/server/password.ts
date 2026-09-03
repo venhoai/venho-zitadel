@@ -4,6 +4,7 @@ import { isClassifiedError } from "@/lib/grpc/interceptors/error-classification"
 import { createLogger } from "@/lib/logger";
 import { recordAuthAttempt, recordAuthFailure, recordAuthSuccess } from "@/lib/metrics";
 import { createSessionAndUpdateCookie, setSessionAndUpdateCookie } from "@/lib/server/cookie";
+import { appendRequestIdToUrlTemplate } from "@/lib/url-template";
 import {
   getLockoutSettings,
   getLoginSettings,
@@ -122,9 +123,15 @@ export async function resetPassword(command: ResetPasswordCommand) {
   return passwordReset({
     serviceConfig,
     userId,
-    urlTemplate:
-      `${hostWithProtocol}${basePath}/password/set?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}` +
-      (command.requestId ? `&requestId=${command.requestId}` : ""),
+    // VENHO FORK: the reset link is capped at 200 runes like every other
+    // notification template (see lib/url-template.ts), and a device_ requestId
+    // overruns it on its own — "Reset password" during a device sign-in sent
+    // nothing at all. /password/set recovers the requestId from the session
+    // cookie, so the flow still resumes for the browser that asked.
+    urlTemplate: appendRequestIdToUrlTemplate(
+      `${hostWithProtocol}${basePath}/password/set?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}`,
+      command.requestId,
+    ),
   });
 }
 

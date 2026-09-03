@@ -1,6 +1,7 @@
 "use server";
 
 import { createLogger } from "@/lib/logger";
+import { appendRequestIdToUrlTemplate, exceedsUrlTemplateLimit, runeLength } from "@/lib/url-template";
 import {
   createInviteCode,
   getLoginSettings,
@@ -108,6 +109,15 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
     organization: command.organization,
   });
 
+  // VENHO FORK: a device_ requestId cannot travel in the verification mail — it
+  // is a ~264-rune JWE and ZITADEL caps every notification url_template at 200
+  // (see lib/url-template.ts), so the link the user clicks carries no requestId
+  // at all. The session cookie kept it from the moment the session was created,
+  // and this is the same browser, so recover it here. Without it the device
+  // grant is stranded: the flow would finish on /signedin with nothing left to
+  // complete. An explicit requestId on the request always wins.
+  const requestId = command.requestId ?? sessionCookie?.requestId;
+
   if (sessionCookie) {
     session = await getSession({ serviceConfig, sessionId: sessionCookie.id, sessionToken: sessionCookie.token })
       .then((response) => {
@@ -151,7 +161,7 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
 
       const result = await createSessionAndUpdateCookie({
         checks,
-        requestId: command.requestId,
+        requestId: requestId,
       });
       session = result.session;
     }
@@ -168,8 +178,8 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
       params.set("loginName", session.factors?.user?.loginName);
     }
 
-    if (command.requestId) {
-      params.set("requestId", command.requestId);
+    if (requestId) {
+      params.set("requestId", requestId);
     }
 
     // set hash of userId and userAgentId to prevent attacks, checks are done for users with invalid sessions and invalid userAgentId
@@ -204,8 +214,8 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
         "loginName" in command && command.loginName ? command.loginName : user.preferredLoginName,
       );
     }
-    if (command.requestId) {
-      verifySuccessParams.set("requestId", command.requestId);
+    if (requestId) {
+      verifySuccessParams.set("requestId", requestId);
     }
     if (command.organization) {
       verifySuccessParams.set("organization", command.organization);
@@ -223,7 +233,7 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
     loginSettings,
     authMethodResponse.authMethodTypes,
     command.organization,
-    command.requestId,
+    requestId,
   );
 
   if (mfaFactorCheck?.redirect) {
@@ -231,11 +241,11 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
   }
 
   // login user if no additional steps are required
-  if (command.requestId && session.id) {
+  if (requestId && session.id) {
     return completeFlowOrGetUrl(
       {
         sessionId: session.id,
-        requestId: command.requestId,
+        requestId: requestId,
         organization: command.organization ?? session.factors?.user?.organizationId,
       },
       loginSettings?.defaultRedirectUri,
@@ -264,11 +274,23 @@ function buildVerificationUrlTemplate(
     urlTemplate += "&invite=true";
   }
 
-  if (requestId) {
-    urlTemplate += `&requestId=${encodeURIComponent(requestId)}`;
+  // VENHO FORK: the requestId travels only when it fits ZITADEL's 200-rune cap,
+  // and never for a device grant, which would breach it single-handedly and take
+  // the whole notification down with it. sendVerification recovers it from the
+  // session cookie at the other end.
+  const withRequestId = appendRequestIdToUrlTemplate(urlTemplate, requestId);
+
+  if (exceedsUrlTemplateLimit(withRequestId)) {
+    // Nothing left to drop: the host and base path breach the cap on their own,
+    // so SendEmailCode will reject this with InvalidArgument. Say so here — the
+    // instance never receives the request and logs nothing about it.
+    logger.error("Verification URL template exceeds ZITADEL's 200 rune limit; no mail can be sent", {
+      length: runeLength(withRequestId),
+      urlTemplate: withRequestId,
+    });
   }
 
-  return urlTemplate;
+  return withRequestId;
 }
 
 type resendVerifyEmailCommand = {
@@ -295,12 +317,20 @@ export async function resendVerification(command: resendVerifyEmailCommand) {
         if (error.code === 9) {
           return { error: t("errors.userAlreadyVerified") };
         }
+        logger.error("Could not resend invite code", { userId: command.userId, error });
         return { error: t("errors.couldNotResendInvite") };
       })
     : zitadelSendEmailCode({
         serviceConfig,
         userId: command.userId,
         urlTemplate,
+      }).catch((error) => {
+        // VENHO FORK: this used to reject, and the form turned every rejection
+        // into a bare "Could not resend email" — no way to tell a network blip
+        // from an instance that cannot send at all. Return the failure so the
+        // page can state it, and log the reason the instance gave.
+        logger.error("Could not resend verification email", { userId: command.userId, error });
+        return { error: t("errors.emailSendFailed") };
       });
 }
 
@@ -334,13 +364,16 @@ type TrySendVerificationCommand = {
  * Returns `true` if sent successfully, `false` on error (swallowed and logged).
  */
 export async function trySendVerification(command: TrySendVerificationCommand): Promise<boolean> {
+  // Hoisted so the failure log below can name the template that was rejected.
+  let urlTemplate: string | undefined;
+
   try {
     const _headers = await headers();
     const { serviceConfig } = getServiceConfig(_headers);
     const hostWithProtocol = await getPublicHostWithProtocol(_headers);
 
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-    const urlTemplate = buildVerificationUrlTemplate(hostWithProtocol, basePath, command.isInvite, command.requestId);
+    urlTemplate = buildVerificationUrlTemplate(hostWithProtocol, basePath, command.isInvite, command.requestId);
 
     if (command.isInvite) {
       await createInviteCode({
@@ -359,7 +392,14 @@ export async function trySendVerification(command: TrySendVerificationCommand): 
     logger.info("Verification email sent successfully", { userId: command.userId, isInvite: command.isInvite });
     return true;
   } catch (err) {
-    logger.error("Failed to send verification email", { userId: command.userId, isInvite: command.isInvite, error: err });
+    logger.error("Failed to send verification email", {
+      userId: command.userId,
+      isInvite: command.isInvite,
+      requestId: command.requestId,
+      urlTemplate,
+      urlTemplateLength: urlTemplate ? runeLength(urlTemplate) : undefined,
+      error: err,
+    });
     return false;
   }
 }

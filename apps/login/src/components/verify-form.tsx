@@ -11,9 +11,9 @@ import { useForm } from "react-hook-form";
 import { AutoSubmitForm } from "./auto-submit-form";
 import { BackButton } from "./back-button";
 import { Button, ButtonVariants } from "./button";
-import { CodeInput } from "./venho/code-input";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
+import { CodeInput } from "./venho/code-input";
 
 type Inputs = {
   code: string;
@@ -34,6 +34,11 @@ export function VerifyForm({ userId, loginName, organization, requestId, code, i
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const codeSent = searchParams.get("codeSent") === "true";
+  // VENHO FORK: the flow reached this page having FAILED to send the code. Until
+  // now that looked exactly like success — the page still said "enter the code
+  // from the verification email" and the user waited for a mail that was never
+  // sent. See checkEmailVerification in lib/verify-helper.ts.
+  const sendFailed = searchParams.get("sendFailed") === "true" && !codeSent;
 
   const { register, handleSubmit, formState, setValue, watch } = useForm<Inputs>({
     mode: "onChange",
@@ -81,6 +86,8 @@ export function VerifyForm({ userId, loginName, organization, requestId, code, i
     // Signal success via URL search param so the "code sent" alert is shown
     const params = new URLSearchParams(searchParams.toString());
     params.set("codeSent", "true");
+    // A resend that worked clears an earlier failure.
+    params.delete("sendFailed");
     router.replace(`${pathname}?${params.toString()}`);
 
     return response;
@@ -127,6 +134,13 @@ export function VerifyForm({ userId, loginName, organization, requestId, code, i
         <div className="w-full py-4">
           <Alert type={AlertType.INFO}>
             <Translated i18nKey="verify.codeSent" namespace="verify" />
+          </Alert>
+        </div>
+      )}
+      {sendFailed && (
+        <div className="w-full py-4" data-testid="send-failed">
+          <Alert type={AlertType.ALERT}>
+            <Translated i18nKey="errors.emailSendFailed" namespace="verify" />
           </Alert>
         </div>
       )}

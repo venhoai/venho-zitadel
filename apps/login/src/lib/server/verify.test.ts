@@ -226,6 +226,65 @@ describe("sendVerification", () => {
       organization: undefined,
     });
   });
+
+  // VENHO FORK: a device_ requestId is too long to travel in the verification
+  // mail (ZITADEL caps the template at 200 runes), so the link comes back
+  // without one and the session cookie holds the only remaining copy. Losing it
+  // strands the device grant: the flow finishes with nothing left to complete.
+  test("recovers the requestId from the session cookie when the link could not carry it", async () => {
+    mockGetSessionCookieByLoginName.mockResolvedValue({
+      id: "stale-session-id",
+      token: "stale-token",
+      requestId: "device_from-cookie",
+    });
+    mockGetSession.mockRejectedValue(new Error("Session not found"));
+    mockListAuthenticationMethodTypes.mockResolvedValue({ authMethodTypes: [] });
+    mockCreateSessionAndUpdateCookie.mockResolvedValue({
+      session: {
+        id: "new-session-id",
+        factors: { user: { id: "user-1", loginName: "test@example.com", organizationId: "org-1" } },
+      },
+    });
+
+    const result = await sendVerification({
+      userId: "user-1",
+      code: "123456",
+      isInvite: false,
+      // no requestId — exactly what arriving from the mail link looks like
+    });
+
+    const params = new URLSearchParams((result as { redirect: string }).redirect.split("?")[1]);
+    expect(params.get("requestId")).toBe("device_from-cookie");
+    expect(mockCreateSessionAndUpdateCookie).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: "device_from-cookie" }),
+    );
+  });
+
+  test("an explicit requestId still wins over the one in the cookie", async () => {
+    mockGetSessionCookieByLoginName.mockResolvedValue({
+      id: "stale-session-id",
+      token: "stale-token",
+      requestId: "device_from-cookie",
+    });
+    mockGetSession.mockRejectedValue(new Error("Session not found"));
+    mockListAuthenticationMethodTypes.mockResolvedValue({ authMethodTypes: [] });
+    mockCreateSessionAndUpdateCookie.mockResolvedValue({
+      session: {
+        id: "new-session-id",
+        factors: { user: { id: "user-1", loginName: "test@example.com", organizationId: "org-1" } },
+      },
+    });
+
+    const result = await sendVerification({
+      userId: "user-1",
+      code: "123456",
+      isInvite: false,
+      requestId: "oidc_from-the-url",
+    });
+
+    const params = new URLSearchParams((result as { redirect: string }).redirect.split("?")[1]);
+    expect(params.get("requestId")).toBe("oidc_from-the-url");
+  });
 });
 
 describe("trySendVerification", () => {
@@ -313,6 +372,41 @@ describe("trySendVerification", () => {
       urlTemplate:
         "https://example.com/ui/v2/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&requestId=req%26id%3Dinjected",
     });
+  });
+
+  // VENHO FORK: this is the regression that stopped every device sign-up. The
+  // template is capped at 200 runes and a device_ id is ~264 on its own, so
+  // appending it made SendEmailCode fail with InvalidArgument — no code, no
+  // mail, and trySendVerification swallowed the reason.
+  test("omits a device requestId, which would breach ZITADEL's 200-rune template limit", async () => {
+    const result = await trySendVerification({
+      userId: "user-1",
+      isInvite: false,
+      requestId: `device_${"e".repeat(260)}`,
+    });
+
+    expect(result).toBe(true);
+    const { urlTemplate } = mockSendEmailCode.mock.calls[0][0];
+    expect(urlTemplate).toBe(
+      "https://example.com/ui/v2/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}",
+    );
+    expect(urlTemplate).not.toContain("requestId");
+    expect([...urlTemplate].length).toBeLessThanOrEqual(200);
+  });
+
+  test("omits a device requestId on the invite path too", async () => {
+    const result = await trySendVerification({
+      userId: "user-1",
+      isInvite: true,
+      requestId: `device_${"e".repeat(260)}`,
+    });
+
+    expect(result).toBe(true);
+    const { urlTemplate } = mockCreateInviteCode.mock.calls[0][0];
+    expect(urlTemplate).toBe(
+      "https://example.com/ui/v2/login/verify?code={{.Code}}&userId={{.UserID}}&organization={{.OrgID}}&invite=true",
+    );
+    expect([...urlTemplate].length).toBeLessThanOrEqual(200);
   });
 
   test("should include invite=true and requestId for invite with requestId", async () => {

@@ -2,10 +2,14 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { VerifyForm } from "./verify-form";
 
+// Hoisted so the mock factory (which vitest lifts above the imports) can read a
+// value the tests set per case.
+const nav = vi.hoisted(() => ({ searchParams: new URLSearchParams() }));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => "/verify",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => nav.searchParams,
 }));
 
 vi.mock("next-intl", () => ({
@@ -22,6 +26,7 @@ describe("VerifyForm", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    nav.searchParams = new URLSearchParams();
 
     const { sendVerification } = await import("@/lib/server/verify");
     mockSendVerification = vi.mocked(sendVerification);
@@ -29,6 +34,33 @@ describe("VerifyForm", () => {
   });
 
   afterEach(cleanup);
+
+  // VENHO FORK: a send that failed used to look exactly like one that worked —
+  // same page, same "enter the code from the verification email" copy, no mail.
+  // checkEmailVerification now marks the redirect, and this is where it shows.
+  describe("Failed send", () => {
+    test("states that the mail could not be sent when the flow says so", () => {
+      nav.searchParams = new URLSearchParams("sendFailed=true");
+
+      render(<VerifyForm userId="user-1" code="" isInvite={false} submit={false} />);
+
+      expect(screen.getByTestId("send-failed")).toHaveTextContent("errors.emailSendFailed");
+    });
+
+    test("says nothing when the code was sent", () => {
+      render(<VerifyForm userId="user-1" code="" isInvite={false} submit={false} />);
+
+      expect(screen.queryByTestId("send-failed")).toBeNull();
+    });
+
+    test("a later success outranks the failure marker", () => {
+      nav.searchParams = new URLSearchParams("sendFailed=true&codeSent=true");
+
+      render(<VerifyForm userId="user-1" code="" isInvite={false} submit={false} />);
+
+      expect(screen.queryByTestId("send-failed")).toBeNull();
+    });
+  });
 
   describe("Input Focus", () => {
     test("should autofocus the code input on mount", () => {

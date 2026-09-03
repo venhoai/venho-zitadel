@@ -167,13 +167,21 @@ that session validated, the gate on the way in would be worth nothing. Costs one
 
 **Operational prerequisite: the instance needs working SMTP.** Verification is no
 longer optional, so an instance that cannot send mail cannot complete a sign-up —
-users reach `/verify` and stop. The local throwaway stack has no SMTP configured;
-mint a code out of band to test the flow end to end:
+users reach `/verify` and stop. SMTP provider config lives in the **database**;
+`ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_*` only applies when an instance is
+first created, so it does nothing for a database that already exists. The failure
+is silent from the app's side: `SendEmailCode` returns 200 and the notification
+handler dies asynchronously with `could not create email channel … SMTPConfig.NotFound`.
+
+The local stack ships a [Mailpit](https://mailpit.axllent.org/) catcher
+(`deploy/venho/compose.dev.yml`, UI on :8025); point the instance at it, or at a
+real relay, with `deploy/venho/seed-smtp.sh` — see
+[`deploy/venho/README.md`](deploy/venho/README.md). Run it against **every**
+instance the login app fronts, and confirm with:
 
 ```sh
-curl -X POST -H "Authorization: Bearer $PAT" -H "Host: localhost" \
-  -H "Content-Type: application/json" \
-  http://localhost:8080/v2/users/<userId>/email/resend -d '{"returnCode":{}}'
+curl -sS -X POST "$ZITADEL_API_URL/admin/v1/email/_search" \
+  -H "Authorization: Bearer $PAT" -d '{}'   # must list a provider, state EMAIL_PROVIDER_ACTIVE
 ```
 
 `apps/login/src/lib/server/register.test.ts` pins the invariant for all three
@@ -183,6 +191,59 @@ sign-up lands on `/verify` and then `/signedin`; passkey sign-up lands on
 `/verify` and then `/authenticator/set` to enrol the passkey; an abandoned,
 unverified sign-up that comes back through `/loginname` is sent to `/verify`
 rather than signed in; an already-verified user signs in normally.
+
+### Notification links are capped at 200 runes, and a device grant does not fit
+
+Every `url_template` ZITADEL accepts on a notification is validated as
+`{min_len: 1, max_len: 200}` runes — the verification mail
+(`proto/zitadel/user/v2/email.proto`), the invite, the password reset link and
+the Email-OTP challenge alike. Breaching it is not a soft failure and not a
+delivery problem: the gRPC call is rejected with `InvalidArgument`, so no code is
+ever generated, nothing is queued, and the **instance logs nothing at all** —
+it was never asked to send anything.
+
+The login app appended the flow's `requestId` to every one of those templates
+(upstream b61ad1e5a, "preserve OIDC request context during email verification").
+That is fine for an OIDC or SAML id — `oidc_V2_<18 digits>`, 26 runes — and fatal
+for a device grant, because a `device_` id **is** the encrypted device
+authorization request: a JWE of ~264 runes, over the cap on its own.
+
+So sign-up through the device flow — the path venho-desktop and Mind 2 use, the
+only one with live users — never sent a verification mail at all. Three things
+hid it: `trySendVerification` swallows the error, `checkEmailVerification`
+redirects to `/verify` regardless, and `/verify` said "enter the code provided in
+the verification email" unconditionally. Upstream never hit it because upstream
+does not send at sign-up at all; the fork's mandatory verification is what turned
+a latent bug into a wall.
+
+- `apps/login/src/lib/url-template.ts` is the one place that knows the cap.
+  `appendRequestIdToUrlTemplate` adds the requestId only when it is not a device
+  id **and** the result still fits, so no notification can be taken down by its
+  own flow context. It counts runes (code points), not UTF-16 units, because that
+  is what the Go validator counts.
+- The three builders use it: `buildVerificationUrlTemplate`
+  (`lib/server/verify.ts`), the Email-OTP challenge in
+  `components/login-otp.tsx`, and the password reset link in
+  `lib/server/password.ts`.
+- What the link gives up, the **session cookie** already holds — it has stored
+  `requestId` since the session was created. `sendVerification`,
+  `/otp/[method]` and `/password/set` recover it from there, so the flow still
+  completes in the browser that started it. A link opened on a *different* device
+  has no cookie and ends on the success page instead of resuming the grant; for a
+  device grant that is harmless, because the device is polling for the token
+  either way.
+- **Failure is now visible.** `checkEmailVerification` marks a failed send with
+  `sendFailed=true` on the `/verify` redirect and the page states it, instead of
+  telling the user to read a mail that was never sent. `resendVerification`
+  returns the failure rather than rejecting, and both log the reason the instance
+  gave along with the offending template and its length.
+
+`src/lib/url-template.test.ts` pins the cap arithmetic, and
+`deploy/compose/tests/device-signup-email.spec.ts` is the end-to-end net: it mints
+a real device authorization, drives the browser through consent, sign-up and
+`/verify`, requires the mail to arrive in Mailpit, and then redeems the device
+code at `/oauth/v2/token`. A mailbox-level assertion is the only kind that catches
+this class of bug — every API call on the way returns 200.
 
 ## Staying in sync with upstream
 

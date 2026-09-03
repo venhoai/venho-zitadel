@@ -377,6 +377,12 @@ export async function sendLoginname(command: SendLoginnameCommand) {
 
       if (codeSent) {
         params.append("codeSent", "true");
+      } else if (shouldSend) {
+        // VENHO FORK: we tried and failed (trySendVerification swallows the
+        // reason), so say so on /verify rather than telling the user to read a
+        // mail that was never sent. Not marked when shouldSend is false: that is
+        // the deliberate skip above, where an earlier code is still valid.
+        params.append("sendFailed", "true");
       }
 
       if (command.requestId) {

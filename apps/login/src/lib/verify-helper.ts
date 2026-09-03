@@ -60,6 +60,11 @@ export async function checkEmailVerified(
 
     if (codeSent) {
       paramsVerify.append("codeSent", "true");
+    } else {
+      // VENHO FORK: trySendVerification swallows its error, so a failed send used
+      // to be indistinguishable from a successful one — same page, same "enter the
+      // code from the email" copy, no mail. Mark it, and /verify says so.
+      paramsVerify.append("sendFailed", "true");
     }
 
     if (organization || session.factors?.user?.organizationId) {
@@ -99,6 +104,11 @@ export async function checkEmailVerification(
 
     if (codeSent) {
       params.append("codeSent", "true");
+    } else {
+      // VENHO FORK: trySendVerification swallows its error, so a failed send used
+      // to be indistinguishable from a successful one — same page, same "enter the
+      // code from the email" copy, no mail. Mark it, and /verify says so.
+      params.append("sendFailed", "true");
     }
 
     if (requestId) {
