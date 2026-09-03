@@ -22,12 +22,23 @@
       "account": "Account settings",
       "cloud": "Cloud services",
       "unknown": "Additional access"
+    },
+    "expired": {
+      "title": "This request has expired",
+      "description": "The code timed out before you approved it. Start again on your device to get a new one."
+    },
+    "usercode": {
+      "error": "That code could not be found. Check it and try again."
     }
   },
   "signedin": {
     "device": {
       "title": "Authorization approved",
-      "description": "You're all set. You can now return to the app to continue."
+      "description": "You're all set. You can now return to the app to continue.",
+      "denied": {
+        "title": "Authorization denied",
+        "description": "Nothing was granted. The app on your device has not been given access to your account."
+      }
     }
   },
   "loginname": {

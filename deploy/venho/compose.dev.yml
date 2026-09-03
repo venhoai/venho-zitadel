@@ -16,6 +16,12 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: venho-admin-sa
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Venho local admin
       ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
+      # A device code is valid for 5 minutes by default, and the whole sign-up
+      # now happens inside that window: enter the code, create the account,
+      # verify the email, then consent. Five minutes is not enough for someone
+      # switching to their mail, and the code expiring mid-flow looks like a
+      # broken product. Deployed instances need this too — see VENHO.md.
+      ZITADEL_OIDC_DEVICEAUTH_LIFETIME: 15m
       # Mail delivery to the Mailpit catcher below, seeded AT INSTANCE CREATION
       # (setupSMTPSettings adds AND activates it — internal/command/instance.go).
       # Email verification is mandatory on every sign-up path, so without this a

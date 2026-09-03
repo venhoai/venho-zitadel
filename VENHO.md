@@ -240,10 +240,73 @@ a latent bug into a wall.
 
 `src/lib/url-template.test.ts` pins the cap arithmetic, and
 `deploy/compose/tests/device-signup-email.spec.ts` is the end-to-end net: it mints
-a real device authorization, drives the browser through consent, sign-up and
-`/verify`, requires the mail to arrive in Mailpit, and then redeems the device
+a real device authorization, drives the browser through sign-up, `/verify` and
+consent, requires the mail to arrive in Mailpit, and then redeems the device
 code at `/oauth/v2/token`. A mailbox-level assertion is the only kind that catches
 this class of bug — every API call on the way returns 200.
+
+### Consent comes after sign-in, and a click is what binds the device
+
+Upstream's Login V2 asks for consent first:
+
+    /device → /device/consent (Allow) → /loginname → … → /signedin
+
+Allow is an `<a>` to the login page. Nothing records the decision, and the grant
+is really approved by the **GET** on `/signedin` at the end, against whichever
+session cookie matches. That ordering is wrong in two separate ways.
+
+It is wrong for the user, who is asked to grant an application access to an
+account they have not chosen yet — and, on a first run, that does not exist yet.
+And it is wrong for security: since approval is a side effect of loading a page,
+anyone could mint a device authorization, resolve its user code to a `requestId`,
+and send `/signedin?requestId=device_…` to a signed-in victim, whose browser
+would bind the attacker's device without a single click. `Deny` was open the
+same way — `completeDeviceAuthorization(id)` with no session cancels any request
+for anyone holding the id.
+
+ZITADEL's own **legacy v1 login does it correctly**: `handleDeviceAuthAction`
+(`internal/api/ui/login/device_auth.go`) refuses to render approve/deny until
+`authReq.Done()`. Login V2 lost that. The fork restores it:
+
+    /device → /accounts or /loginname → … → /device/consent (Allow) → /signedin
+
+- **`lib/device.ts`** is the browser's own record of the device authorizations it
+  started: an httpOnly cookie pairing each `requestId` with the user code it came
+  from. It exists because the only server-side lookup is *by user code* while the
+  login flow carries only a `requestId` — and because that id is
+  `EncryptToken(deviceCode)`, minted fresh on every call, so two lookups of one
+  user code return two different ids and comparing them proves nothing. The
+  cookie both survives the detour through sign-up and makes the pairing
+  unforgeable: approval reads the user code from *there*, never from the URL.
+- **`lib/server/device.ts`** holds the three actions. `startDeviceAuthorization`
+  resolves the code, remembers the pairing, and returns the identity step.
+  `approveDeviceAuthorization` requires the pairing, a session cookie this
+  browser holds, and that session passing the same `isSessionValid` gate as the
+  rest of the flow. `denyDeviceAuthorization` requires the pairing but
+  deliberately not a live session, so a user can always shut down a request they
+  did not start.
+- **`lib/client.ts`** is where it is enforced. Every authenticated path
+  (password, passkey, IDP, registration, email verification, the account picker)
+  converges on `getNextUrl`, so pointing its device branch at `/device/consent`
+  moves consent for all of them at once.
+- **`/signedin` no longer approves anything.** For a device request it is a
+  receipt, and it says which one: approved, or denied via `?result=denied`.
+
+`src/lib/device.test.ts`, `src/lib/server/device.test.ts` and
+`src/components/consent.test.tsx` pin the refusals. The end-to-end spec asserts
+the ordering *and* the attack: with the user authenticated and consent on screen,
+it polls the token endpoint and loads `/signedin` directly, and both must leave
+the grant `authorization_pending` until Allow is clicked. It then repeats the
+whole thing in a browser that is already signed in, where the code leads to the
+account picker rather than to a login form.
+
+One consequence worth planning for: **the whole sign-up now happens inside the
+device code's lifetime**, which is five minutes by default
+(`ZITADEL_OIDC_DEVICEAUTH_LIFETIME`, `cmd/defaults.yaml`). Entering a code,
+creating an account, fetching a verification mail and consenting does not fit
+five minutes for a real person. `deploy/venho/compose.dev.yml` sets 15m; deployed
+instances need the same, and `venho-desktop` must restart the grant cleanly on
+`expired_token`.
 
 ## Staying in sync with upstream
 
@@ -354,9 +417,18 @@ sign-in; `VENHO_AUTH_FORCE_LOGIN` is the escape hatch — see `isLoginForced()` 
 `electron/src/auth/config.ts`.)
 
 Confirm the browser opens **this** app's `/device` page with the code prefilled,
-that approving completes the poll in the app, and that the granted scope still
-carries `urn:zitadel:iam:org:project:id:zitadel:aud` — without it the desktop's
-in-app profile editor silently 401s.
+that submitting it leads to sign-in or the account picker rather than straight to
+consent, that consent then names the account it will bind, that approving
+completes the poll in the app, and that the granted scope still carries
+`urn:zitadel:iam:org:project:id:zitadel:aud` — without it the desktop's in-app
+profile editor silently 401s.
+
+The same journey runs unattended against the local stack:
+
+```bash
+cd deploy/compose
+PLAYWRIGHT_CHANNEL=chrome npx playwright test tests/device-signup-email.spec.ts
+```
 
 ## Instance and server settings the designs assume
 
@@ -377,6 +449,10 @@ itself:
   fix: the fallback is the requested domain, i.e. `auth.dev.venho.ai`.
   `deploy/venho/compose.dev.yml` sets it for local dev; production has to set the
   same value on the ZITADEL container.
+- **Device code lifetime**, `ZITADEL_OIDC_DEVICEAUTH_LIFETIME`. Consent now
+  happens after sign-in, so a first-time user creates an account and verifies an
+  email inside this window. The default is five minutes, which is not enough;
+  local dev uses 15m and deployed instances should match.
 - **Passkeys as a primary method.** The sign-up design goes straight from email
   to password; upstream shows a "Passkey or Password?" chooser whenever
   `passkeysType` is `ALLOWED`. The designs use device/WebAuthn as a *second*

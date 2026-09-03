@@ -5,13 +5,15 @@ import { expect, test } from "@playwright/test";
  * Mind 2 actually use (VENHO.md "Why this exists").
  *
  * Mints a real RFC 8628 device authorization request against the local
- * instance, walks the browser through /device → consent → /loginname →
- * /register → /register/password, and then asserts the two things that matter
- * and are otherwise silent:
- *   1. the verification email really arrives in Mailpit (SendEmailCode returns
+ * instance, walks the browser through the flow, and asserts the things that are
+ * otherwise silent:
+ *   1. consent comes AFTER identity — submitting the user code leads to sign-in,
+ *      not to an Allow button for an account that does not exist yet;
+ *   2. the verification email really arrives in Mailpit (SendEmailCode returns
  *      200 even with no SMTP provider — only the mailbox proves delivery);
- *   2. the code from that mail completes the flow all the way to the device
- *      grant being redeemable at /oauth/v2/token.
+ *   3. loading /signedin does NOT approve the grant, which it used to do, so a
+ *      link was enough to bind a device to any signed-in browser;
+ *   4. clicking Allow does, and the grant is then redeemable at /oauth/v2/token.
  *
  * Prerequisites: the dev stack (compose.dev.yml, Mailpit, seeded SMTP) and the
  * login app on :3000. Skips if either is absent.
@@ -30,8 +32,8 @@ const MAILPIT = process.env.MAILPIT_URL ?? "http://localhost:8025";
 const CLIENT_ID = process.env.DEVICE_CLIENT_ID ?? "388456676392501251";
 const SCOPE = "openid profile email offline_access urn:zitadel:iam:org:project:id:zitadel:aud";
 
-test("device-grant sign-up sends the verification email and the grant redeems", async ({ page, request }) => {
-  test.setTimeout(120_000);
+test("device-grant sign-up: consent after identity, and only a click binds the device", async ({ page, request }) => {
+  test.setTimeout(180_000);
 
   const mailpitUp = await request.get(`${MAILPIT}/api/v1/info`).then(
     (r) => r.ok(),
@@ -43,6 +45,14 @@ test("device-grant sign-up sends the verification email and the grant redeems", 
     () => false,
   );
   test.skip(!loginUp, `login app not reachable at ${LOGIN}`);
+
+  const pollToken = async () => {
+    const res = await request.post(`${API}/oauth/v2/token`, {
+      headers: { Host: API_HOST, "Content-Type": "application/x-www-form-urlencoded" },
+      form: { grant_type: "urn:ietf:params:oauth:grant-type:device_code", client_id: CLIENT_ID, device_code },
+    });
+    return { ok: res.ok(), json: await res.json() };
+  };
 
   // 1. What the desktop app does: mint a device authorization request.
   const da = await request.post(`${API}/oauth/v2/device_authorization`, {
@@ -60,11 +70,11 @@ test("device-grant sign-up sends the verification email and the grant redeems", 
   await page.goto(`${LOGIN}/device?user_code=${encodeURIComponent(user_code)}`);
   await page.getByTestId("submit-button").click();
 
-  // 3. Consent, shown BEFORE identity. Allow → /loginname?requestId=device_…
-  await page.waitForURL(/\/device\/consent\?/, { timeout: 20_000 });
-  await page.getByTestId("submit-button").click();
+  // 3. Identity FIRST. A fresh browser has no sessions, so the code leads to
+  //    /loginname — never to a consent screen for nobody.
   await page.waitForURL(/\/loginname\?/, { timeout: 20_000 });
   expect(page.url()).toMatch(/requestId=device_/);
+  const requestId = new URL(page.url()).searchParams.get("requestId")!;
 
   // 4. Sign up.
   await page.getByTestId("register-button").click();
@@ -115,26 +125,95 @@ test("device-grant sign-up sends the verification email and the grant redeems", 
   await page.keyboard.type(code);
   await page.getByTestId("submit-button").click();
 
-  // 7. The device grant must end on /signedin and be redeemable.
+  // 7. NOW consent — the user is authenticated and the screen says as whom.
+  await page.waitForURL(/\/device\/consent\?/, { timeout: 30_000 });
+  // :visible matters here. The consent page makes several API calls before it
+  // can render, so React streams it in two chunks, and for a moment after a
+  // hard load the document holds the streamed copy AND the hidden staging one.
+  const allow = page.locator('[data-testid="submit-button"]:visible');
+  await allow.waitFor({ timeout: 20_000 });
+  await expect(page.getByTestId("continue-as")).toContainText(email.split("@")[0], { ignoreCase: true });
+  const consentUrl = page.url();
+
+  // 8. Nothing has been granted yet, and merely loading the old completion page
+  //    must not grant it. This is the link attack the reorder closed.
+  let pending = await pollToken();
+  expect(pending.json.error, "the grant was approved before anyone clicked Allow").toBe("authorization_pending");
+
+  await page.goto(`${LOGIN}/signedin?requestId=${encodeURIComponent(requestId)}`);
+  pending = await pollToken();
+  expect(pending.json.error, "loading /signedin approved the grant with no consent").toBe("authorization_pending");
+
+  // 9. Back to consent, and this time click Allow. Re-navigating rather than
+  //    going back in history: a restored page keeps the previous document's
+  //    buttons around, and the click then has two candidates.
+  await page.goto(consentUrl);
+  await allow.click();
+
   await page.waitForURL(/\/signedin\?/, { timeout: 30_000 });
+  await expect(page.getByTestId("status-panel")).toBeVisible();
   console.log("terminal url:", new URL(page.url()).search);
 
   let token: any = null;
   for (let i = 0; i < 10 && !token; i++) {
-    const res = await request.post(`${API}/oauth/v2/token`, {
-      headers: { Host: API_HOST, "Content-Type": "application/x-www-form-urlencoded" },
-      form: {
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        client_id: CLIENT_ID,
-        device_code,
-      },
-    });
-    const json = await res.json();
-    if (res.ok() && json.access_token) token = json;
+    const { ok, json } = await pollToken();
+    if (ok && json.access_token) token = json;
     else {
       console.log("token poll:", json.error, json.error_description ?? "");
       await page.waitForTimeout(2000);
     }
   }
   expect(token, "device grant never became redeemable").toBeTruthy();
+
+  // 10. A second device, in a browser that is now signed in. The user code
+  //     leads to the account picker — identity is still chosen before consent,
+  //     it is just chosen rather than created — and consent still has to be
+  //     given for this new grant.
+  const second = await request.post(`${API}/oauth/v2/device_authorization`, {
+    headers: { Host: API_HOST, "Content-Type": "application/x-www-form-urlencoded" },
+    form: { client_id: CLIENT_ID, scope: SCOPE },
+  });
+  const secondAuth = await second.json();
+
+  await page.goto(`${LOGIN}/device?user_code=${encodeURIComponent(secondAuth.user_code)}`);
+  await page.getByTestId("submit-button").click();
+
+  await page.waitForURL(/\/accounts\?/, { timeout: 20_000 });
+  expect(page.url()).toMatch(/requestId=device_/);
+  await page.getByTestId("continue-as-button").click();
+
+  await page.waitForURL(/\/device\/consent\?/, { timeout: 20_000 });
+  const secondAllow = page.locator('[data-testid="submit-button"]:visible');
+  await secondAllow.waitFor({ timeout: 20_000 });
+
+  const stillPending = await request.post(`${API}/oauth/v2/token`, {
+    headers: { Host: API_HOST, "Content-Type": "application/x-www-form-urlencoded" },
+    form: {
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      client_id: CLIENT_ID,
+      device_code: secondAuth.device_code,
+    },
+  });
+  expect((await stillPending.json()).error, "an existing session approved the grant on its own").toBe(
+    "authorization_pending",
+  );
+
+  await secondAllow.click();
+  await page.waitForURL(/\/signedin\?/, { timeout: 30_000 });
+
+  let secondToken: any = null;
+  for (let i = 0; i < 10 && !secondToken; i++) {
+    const res = await request.post(`${API}/oauth/v2/token`, {
+      headers: { Host: API_HOST, "Content-Type": "application/x-www-form-urlencoded" },
+      form: {
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        client_id: CLIENT_ID,
+        device_code: secondAuth.device_code,
+      },
+    });
+    const json = await res.json();
+    if (res.ok() && json.access_token) secondToken = json;
+    else await page.waitForTimeout(2000);
+  }
+  expect(secondToken, "the signed-in device grant never became redeemable").toBeTruthy();
 });

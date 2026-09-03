@@ -1,17 +1,15 @@
-import { Alert } from "@/components/alert";
 import { Button, ButtonVariants } from "@/components/button";
 import { DynamicTheme } from "@/components/dynamic-theme";
 import { Translated } from "@/components/translated";
 import { UserAvatar } from "@/components/user-avatar";
-import { resolveRedirectUri } from "@/lib/client";
-import { getMostRecentCookieWithLoginname, getSessionCookieById } from "@/lib/cookies";
-import { completeDeviceAuthorization } from "@/lib/server/device";
 import { CloseWindowButton } from "@/components/venho/close-window-button";
 import { StatusPanel } from "@/components/venho/status-panel";
-import { Check } from "lucide-react";
+import { resolveRedirectUri } from "@/lib/client";
+import { getSessionCookieById } from "@/lib/cookies";
 import { getServiceConfig } from "@/lib/service-url";
 import { loadMostRecentSession } from "@/lib/session";
 import { getBrandingSettings, getLoginSettings, getSession, ServiceConfig } from "@/lib/zitadel";
+import { Ban, Check } from "lucide-react";
 import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
@@ -42,42 +40,40 @@ export default async function Page(props: { searchParams: Promise<any> }) {
   const _headers = await headers();
   const { serviceConfig } = getServiceConfig(_headers);
 
-  const { loginName, requestId, organization, sessionId } = searchParams;
+  const { loginName, requestId, organization, sessionId, result } = searchParams;
 
   const branding = await getBrandingSettings({ serviceConfig, organization });
 
   const isDeviceRequest = !!requestId && requestId.startsWith("device_");
 
-  // complete device authorization flow if device requestId is present
+  // VENHO FORK: the device grant ends here, and it ends for good — the browser
+  // has nothing left to do and the user's attention belongs back on the device
+  // that sent them. Upstream showed "Welcome {user}!", an account dropdown and
+  // an untranslated hardcoded English notice; the designs show a single
+  // terminal panel. Everything else on this page (the redirect button, the
+  // avatar) only makes sense for a flow that continues in the browser.
+  //
+  // This page used also to APPROVE the grant, as a side effect of being loaded
+  // — so a link was enough to bind a device to any signed-in browser that
+  // opened it, with no consent screen in between. Approval now happens in the
+  // consent action, after authentication (lib/server/device.ts), and what is
+  // left here is a receipt: it changes nothing, and says only what the action
+  // already decided.
   if (isDeviceRequest) {
-    const cookie = sessionId
-      ? await getSessionCookieById({ sessionId, organization })
-      : await getMostRecentCookieWithLoginname({
-          loginName: loginName,
-          organization: organization,
-        });
+    const denied = result === "denied";
 
-    if (cookie) {
-      await completeDeviceAuthorization(requestId.replace("device_", ""), {
-        sessionId: cookie.id,
-        sessionToken: cookie.token,
-      }).catch((err) => {
-        return (
-          <DynamicTheme branding={branding}>
-            <div className="flex flex-col space-y-4">
-              <h1>
-                <Translated i18nKey="error.title" namespace="signedin" />
-              </h1>
-              <p className="ztdl-p mb-6 block">
-                <Translated i18nKey="error.description" namespace="signedin" />
-              </p>
-              <Alert>{err.message}</Alert>
-            </div>
-            <div className="w-full"></div>
-          </DynamicTheme>
-        );
-      });
-    }
+    return (
+      <DynamicTheme branding={branding}>
+        <StatusPanel
+          icon={denied ? Ban : Check}
+          title={<Translated i18nKey={denied ? "device.denied.title" : "device.title"} namespace="signedin" />}
+          description={
+            <Translated i18nKey={denied ? "device.denied.description" : "device.description"} namespace="signedin" />
+          }
+          action={<CloseWindowButton />}
+        />
+      </DynamicTheme>
+    );
   }
 
   const sessionFactors = sessionId
@@ -96,25 +92,6 @@ export default async function Page(props: { searchParams: Promise<any> }) {
 
   const isSamePage = redirectUri?.startsWith("/signedin") ?? false;
 
-  // VENHO FORK: the device grant ends here, and it ends for good — the browser
-  // has nothing left to do and the user's attention belongs back on the device
-  // that sent them. Upstream showed "Welcome {user}!", an account dropdown and
-  // an untranslated hardcoded English notice; the designs show a single
-  // terminal panel. Everything else on this page (the redirect button, the
-  // avatar) only makes sense for a flow that continues in the browser.
-  if (isDeviceRequest) {
-    return (
-      <DynamicTheme branding={branding}>
-        <StatusPanel
-          icon={Check}
-          title={<Translated i18nKey="device.title" namespace="signedin" />}
-          description={<Translated i18nKey="device.description" namespace="signedin" />}
-          action={<CloseWindowButton />}
-        />
-      </DynamicTheme>
-    );
-  }
-
   return (
     <DynamicTheme branding={branding}>
       <div className="flex flex-col space-y-4">
@@ -128,7 +105,7 @@ export default async function Page(props: { searchParams: Promise<any> }) {
         <UserAvatar
           loginName={loginName ?? sessionFactors?.factors?.user?.loginName}
           displayName={sessionFactors?.factors?.user?.displayName ?? loginName}
-          showDropdown={!isDeviceRequest}
+          showDropdown
           searchParams={searchParams}
         />
       </div>

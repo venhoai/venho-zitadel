@@ -378,6 +378,14 @@
     "error": {
       "title": "Error",
       "description": "An error occurred while trying to sign in."
+    },
+    "device": {
+      "title": "Authorization approved",
+      "description": "You are all set. You can now return to the app to continue.",
+      "denied": {
+        "title": "Authorization denied",
+        "description": "Nothing was granted. The app on your device has not been given access to your account."
+      }
     }
   },
   "verify": {
@@ -434,7 +442,8 @@
       },
       "required": {
         "code": "This field is required"
-      }
+      },
+      "error": "That code could not be found. Check it and try again."
     },
     "request": {
       "title": "{appName} would like to connect",
@@ -448,6 +457,10 @@
       "email": "View your email address.",
       "profile": "View your full profile information.",
       "offline_access": "Allow offline access to your account."
+    },
+    "expired": {
+      "title": "This request has expired",
+      "description": "The code timed out before it was approved. Start again on your device to get a new one."
     }
   },
   "error": {
@@ -457,6 +470,8 @@
     "sessionExpired": "Your current session has expired. Please login again.",
     "failedLoading": "Failed to load data. Please try again.",
     "tryagain": "Try Again",
-    "couldNotContinueSession": "Could not continue with session - missing user information"
+    "couldNotContinueSession": "Could not continue with session - missing user information",
+    "deviceRequestUnknown": "This browser did not start that device request. Enter the code shown on your device to begin.",
+    "deviceRequestExpired": "This device request is no longer waiting for an answer. Start again on your device."
   }
 }

@@ -51,4 +51,36 @@ describe("getNextUrl", () => {
     const result = await getNextUrl(command);
     expect(result).toBe("/signedin?loginName=test-user");
   });
+
+  /**
+   * VENHO FORK — every authenticated path in the app converges here, which is
+   * what makes it the place to insist consent comes last. A device grant used
+   * to be sent straight to /signedin, where loading the page approved it.
+   */
+  describe("a device grant goes to consent, never straight to the receipt", () => {
+    test("carries the session it authenticated as", async () => {
+      const result = await getNextUrl({
+        sessionId: "session-1",
+        requestId: "device_abc",
+        organization: "org-1",
+      });
+
+      expect(result).toBe("/device/consent?requestId=device_abc&sessionId=session-1&organization=org-1");
+    });
+
+    test("falls back to the login name when a path finishes without a session id", async () => {
+      const result = await getNextUrl({ loginName: "test-user", requestId: "device_abc" } as never);
+
+      expect(result).toBe("/device/consent?requestId=device_abc&loginName=test-user");
+    });
+
+    test("leaves OIDC alone — a short requestId still ends where it always did", async () => {
+      const { headers } = await import("next/headers");
+      vi.mocked(headers).mockRejectedValue(new Error("No headers"));
+
+      const result = await getNextUrl({ loginName: "test-user", requestId: "oidc_V2_123" } as never);
+
+      expect(result).not.toContain("/device/consent");
+    });
+  });
 });

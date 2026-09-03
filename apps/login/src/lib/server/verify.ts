@@ -114,8 +114,8 @@ export async function sendVerification(command: VerifyUserByEmailCommand) {
   // (see lib/url-template.ts), so the link the user clicks carries no requestId
   // at all. The session cookie kept it from the moment the session was created,
   // and this is the same browser, so recover it here. Without it the device
-  // grant is stranded: the flow would finish on /signedin with nothing left to
-  // complete. An explicit requestId on the request always wins.
+  // grant is stranded: verification would finish on the generic signed-in page
+  // and never reach consent. An explicit requestId on the request always wins.
   const requestId = command.requestId ?? sessionCookie?.requestId;
 
   if (sessionCookie) {

@@ -1,9 +1,11 @@
-import { cleanup, render } from "@testing-library/react";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { cleanup, render, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ConsentScreen } from "./consent";
 
+const push = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
 }));
 
 vi.mock("next-intl", () => ({
@@ -15,50 +17,64 @@ vi.mock("next-intl", () => ({
 }));
 
 vi.mock("@/lib/server/device", () => ({
-  completeDeviceAuthorization: vi.fn(),
+  approveDeviceAuthorization: vi.fn(),
+  denyDeviceAuthorization: vi.fn(),
 }));
 
+const props = {
+  requestId: "device_123",
+  sessionId: "session-1",
+  scope: ["openid"],
+  appName: "Venho",
+  continueAs: "tom@venho.ai",
+};
+
 describe("ConsentScreen", () => {
+  beforeEach(() => vi.clearAllMocks());
   afterEach(cleanup);
 
-  test("Allow is a plain link to the URL the consent page chose", () => {
-    // The screen must not decide the route itself: the server component picks
-    // /signedin (valid session found) or /loginname (none), and the button
-    // follows it verbatim either way.
-    const { getByTestId, rerender, queryByTestId } = render(
-      <ConsentScreen
-        deviceAuthorizationRequestId="123"
-        scope={["openid"]}
-        appName="Venho"
-        nextUrl="/signedin?requestId=device_123&sessionId=s1"
-        continueAs="tom@venho.ai"
-      />,
-    );
-    expect(getByTestId("submit-button").closest("a")).toHaveAttribute("href", "/signedin?requestId=device_123&sessionId=s1");
-    // ...and it says WHO the grant will be issued to.
+  test("Allow approves the grant for the session it names, and says whose it is", async () => {
+    // The click IS the decision now. Upstream made Allow a link and let a later
+    // page load bind the grant, which meant the button recorded nothing and the
+    // binding needed no button.
+    const { approveDeviceAuthorization } = await import("@/lib/server/device");
+    vi.mocked(approveDeviceAuthorization).mockResolvedValue({ redirect: "/signedin?requestId=device_123" });
+
+    const { getByTestId } = render(<ConsentScreen {...props} organization="org-1" />);
+
+    expect(getByTestId("submit-button").closest("a")).toBeNull();
     expect(getByTestId("continue-as").textContent).toContain("request.continueAs");
 
-    rerender(
-      <ConsentScreen deviceAuthorizationRequestId="123" scope={["openid"]} appName="Venho" nextUrl="/loginname?requestId=device_123" />,
+    getByTestId("submit-button").click();
+
+    await waitFor(() =>
+      expect(approveDeviceAuthorization).toHaveBeenCalledWith({
+        requestId: "device_123",
+        sessionId: "session-1",
+        organization: "org-1",
+      }),
     );
-    expect(getByTestId("submit-button").closest("a")).toHaveAttribute("href", "/loginname?requestId=device_123");
-    expect(queryByTestId("continue-as")).toBeNull();
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/signedin?requestId=device_123"));
   });
 
-  test("Deny completes the request with NO session, session or not", async () => {
-    const { completeDeviceAuthorization } = await import("@/lib/server/device");
-    vi.mocked(completeDeviceAuthorization).mockResolvedValue({} as never);
+  test("Deny cancels the request", async () => {
+    const { denyDeviceAuthorization } = await import("@/lib/server/device");
+    vi.mocked(denyDeviceAuthorization).mockResolvedValue({ redirect: "/signedin?requestId=device_123&result=denied" });
 
-    const { getByTestId } = render(
-      <ConsentScreen
-        deviceAuthorizationRequestId="123"
-        scope={["openid"]}
-        appName="Venho"
-        nextUrl="/signedin?requestId=device_123&sessionId=s1"
-        continueAs="tom@venho.ai"
-      />,
-    );
+    const { getByTestId } = render(<ConsentScreen {...props} />);
     getByTestId("deny-button").click();
-    expect(completeDeviceAuthorization).toHaveBeenCalledWith("123");
+
+    await waitFor(() => expect(denyDeviceAuthorization).toHaveBeenCalledWith({ requestId: "device_123" }));
+  });
+
+  test("a refused approval is shown, not swallowed", async () => {
+    const { approveDeviceAuthorization } = await import("@/lib/server/device");
+    vi.mocked(approveDeviceAuthorization).mockResolvedValue({ error: "deviceRequestExpired" });
+
+    const { getByTestId } = render(<ConsentScreen {...props} />);
+    getByTestId("submit-button").click();
+
+    await waitFor(() => expect(getByTestId("error").textContent).toContain("deviceRequestExpired"));
+    expect(push).not.toHaveBeenCalled();
   });
 });

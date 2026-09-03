@@ -1,44 +1,70 @@
 import { ConsentScreen } from "@/components/consent";
 import { DynamicTheme } from "@/components/dynamic-theme";
 import { Translated } from "@/components/translated";
-import { getAllSessions } from "@/lib/cookies";
+import { StatusPanel } from "@/components/venho/status-panel";
+import { getSessionCookieById, getSessionCookieByLoginName } from "@/lib/cookies";
+import { getPendingDeviceAuthorization } from "@/lib/device";
 import { createLogger } from "@/lib/logger";
 import { getServiceConfig } from "@/lib/service-url";
-import { findValidSession } from "@/lib/session";
-import { getBrandingSettings, getDefaultOrg, getDeviceAuthorizationRequest, listSessions } from "@/lib/zitadel";
+import { isSessionValid } from "@/lib/session";
+import { getBrandingSettings, getDefaultOrg, getDeviceAuthorizationRequest, getSession } from "@/lib/zitadel";
 import { Organization } from "@zitadel/proto/zitadel/org/v2/org_pb";
 import { Session } from "@zitadel/proto/zitadel/session/v2/session_pb";
+import { TimerOff } from "lucide-react";
+import { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+
+/**
+ * VENHO FORK — consent, moved to where it belongs: after the user has signed in.
+ *
+ * Upstream's Login V2 renders this screen straight off `/device`, before anyone
+ * has identified themselves, and its Allow button is a link to the login page.
+ * The user therefore approves scopes for an account they have not chosen yet,
+ * nothing records that they approved anything, and the grant is really bound
+ * later by a GET on `/signedin` — which means a link is enough to bind a device
+ * to a signed-in victim. ZITADEL's own legacy login refuses to render
+ * approve/deny until authentication is complete
+ * (`handleDeviceAuthAction`, internal/api/ui/login/device_auth.go); this is
+ * that ordering restored for v2.
+ *
+ * Everything the page needs must therefore be true at once: this browser
+ * started the device authorization (lib/device.ts), it holds a session cookie,
+ * and that session passes the same `isSessionValid` gate the rest of the flow
+ * uses. Anything missing sends the user to authenticate rather than showing a
+ * decision they cannot yet meaningfully make.
+ */
 
 const logger = createLogger("device-consent");
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("device");
+  return { title: t("request.title", { appName: "" }) };
+}
+
+function ExpiredPanel({ branding }: { branding: any }) {
+  return (
+    <DynamicTheme branding={branding}>
+      <StatusPanel
+        icon={TimerOff}
+        title={<Translated i18nKey="expired.title" namespace="device" />}
+        description={<Translated i18nKey="expired.description" namespace="device" />}
+      />
+    </DynamicTheme>
+  );
+}
 
 export default async function Page(props: { searchParams: Promise<Record<string | number | symbol, string | undefined>> }) {
   const searchParams = await props.searchParams;
 
-  const userCode = searchParams?.user_code;
   const requestId = searchParams?.requestId;
+  const sessionId = searchParams?.sessionId;
+  const loginName = searchParams?.loginName;
   const organization = searchParams?.organization;
-
-  if (!userCode || !requestId) {
-    return (
-      <div>
-        <Translated i18nKey="noUserCode" namespace="error" />
-      </div>
-    );
-  }
 
   const _headers = await headers();
   const { serviceConfig } = getServiceConfig(_headers);
-
-  const { deviceAuthorizationRequest } = await getDeviceAuthorizationRequest({ serviceConfig, userCode });
-
-  if (!deviceAuthorizationRequest) {
-    return (
-      <div>
-        <Translated i18nKey="noDeviceRequest" namespace="error" />
-      </div>
-    );
-  }
 
   let defaultOrganization;
   if (!organization) {
@@ -50,46 +76,58 @@ export default async function Page(props: { searchParams: Promise<Record<string 
 
   const branding = await getBrandingSettings({ serviceConfig, organization: organization ?? defaultOrganization });
 
-  // VENHO FORK: reuse the session the browser already holds. Upstream sends
-  // every device grant through /loginname after consent, even when the user
-  // approved it seconds after signing in on this very browser — the /login
-  // route does session reuse for oidc_ and saml_ requests but deliberately
-  // punts device_ to this page, and this page never looked. So: find a valid
-  // session (findValidSession applies the same checks as everywhere else —
-  // MFA and email verification included, so an account the gate would bounce
-  // is NOT silently reused), and if there is one, Allow completes the grant
-  // as that user via /signedin, which already knows how to finish a device
-  // request from a session cookie. No valid session ⇒ the upstream path,
-  // unchanged.
-  let validSession: Session | undefined;
-  const sessionCookies = await getAllSessions();
-  if (sessionCookies.length) {
-    try {
-      const { sessions } = (await listSessions({
-        serviceConfig,
-        ids: sessionCookies.map((s) => s.id).filter((id) => !!id),
-      })) ?? { sessions: [] };
-      validSession = await findValidSession({ serviceConfig, sessions: sessions ?? [], organization });
-    } catch (error) {
-      // Stale cookie ids or a transient API error must not break consent —
-      // fall back to the sign-in path, exactly as /login does.
-      logger.warn("could not evaluate existing sessions; falling back to login", { error });
+  // The pairing this browser wrote when the user submitted the code. Its
+  // absence is the whole point: a requestId someone else minted cannot be
+  // consented to here, because the user code it maps to is not in this cookie.
+  const pending = requestId?.startsWith("device_") ? await getPendingDeviceAuthorization(requestId) : undefined;
+
+  if (!pending) {
+    logger.warn("no device authorization pending in this browser for that requestId", { requestId });
+    return <ExpiredPanel branding={branding} />;
+  }
+
+  const { deviceAuthorizationRequest } = await getDeviceAuthorizationRequest({
+    serviceConfig,
+    userCode: pending.userCode,
+  }).catch((error) => {
+    // A device code lives five minutes by default
+    // (ZITADEL_OIDC_DEVICEAUTH_LIFETIME), and signing up inside that window is
+    // tight — so an expired request here is an ordinary outcome, not a fault.
+    logger.warn("the device authorization request is gone", { error });
+    return { deviceAuthorizationRequest: undefined };
+  });
+
+  if (!deviceAuthorizationRequest) {
+    return <ExpiredPanel branding={branding} />;
+  }
+
+  // Whoever the flow says signed in, checked against what this browser actually
+  // holds. `getSessionCookieById` is the only source of a session token, so an
+  // id that is not in the cookie yields nothing to approve with.
+  const cookie = sessionId
+    ? await getSessionCookieById({ sessionId, organization })
+    : loginName
+      ? await getSessionCookieByLoginName({ loginName, organization })
+      : undefined;
+
+  let session: Session | undefined;
+  if (cookie) {
+    session = await getSession({ serviceConfig, sessionId: cookie.id, sessionToken: cookie.token })
+      .then((response) => response.session)
+      .catch((error) => {
+        logger.warn("could not load the session backing this consent", { error });
+        return undefined;
+      });
+  }
+
+  if (!cookie || !session || !(await isSessionValid({ serviceConfig, session }))) {
+    // No usable identity yet — or one the gate would bounce (unverified email,
+    // MFA outstanding). Authenticate first; the flow returns here afterwards.
+    const params = new URLSearchParams({ requestId: requestId! });
+    if (organization) {
+      params.append("organization", organization);
     }
-  }
-
-  const params = new URLSearchParams();
-
-  if (requestId) {
-    params.append("requestId", requestId);
-  }
-
-  if (validSession) {
-    // No organization param here: /signedin looks the cookie up by id, and an
-    // organization filter that does not match the cookie's stored value would
-    // make the lookup miss a session we just validated.
-    params.append("sessionId", validSession.id);
-  } else if (organization) {
-    params.append("organization", organization);
+    redirect("/loginname?" + params);
   }
 
   return (
@@ -110,11 +148,12 @@ export default async function Page(props: { searchParams: Promise<Record<string 
 
       <div className="w-full">
         <ConsentScreen
-          deviceAuthorizationRequestId={deviceAuthorizationRequest?.id}
+          requestId={requestId!}
+          sessionId={cookie.id}
+          organization={organization}
           scope={deviceAuthorizationRequest.scope}
           appName={deviceAuthorizationRequest?.appName}
-          nextUrl={(validSession ? `/signedin?` : `/loginname?`) + params}
-          continueAs={validSession?.factors?.user?.loginName}
+          continueAs={session.factors?.user?.loginName ?? cookie.loginName}
         />
       </div>
     </DynamicTheme>

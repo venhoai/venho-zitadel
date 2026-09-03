@@ -40,6 +40,42 @@ function goToSignedInPage(
 }
 
 /**
+ * VENHO FORK — where a device grant goes once the user is authenticated.
+ *
+ * This function is the single point every path through the app converges on
+ * (password, passkey, IDP, registration, email verification, the account
+ * picker), which makes it the right place to insist that consent comes last.
+ * It used to send a device flow straight to `/signedin`, where the grant was
+ * approved by the act of loading the page — after a consent screen shown before
+ * the user had chosen an account, whose Allow button recorded nothing. Now the
+ * flow arrives at consent instead, with an authenticated session to name, and
+ * `/signedin` is only ever the receipt.
+ */
+function goToDeviceConsent(
+  props:
+    | { sessionId: string; organization?: string; requestId: string }
+    | { organization?: string; loginName: string; requestId: string },
+) {
+  const params = new URLSearchParams({ requestId: props.requestId });
+
+  if ("sessionId" in props && props.sessionId) {
+    params.append("sessionId", props.sessionId);
+  }
+
+  // Falls back to the login name when a path completes without a session id;
+  // the consent page resolves it to the same session cookie either way.
+  if ("loginName" in props && props.loginName) {
+    params.append("loginName", props.loginName);
+  }
+
+  if (props.organization) {
+    params.append("organization", props.organization);
+  }
+
+  return `/device/consent?` + params;
+}
+
+/**
  * Complete authentication flow or get next URL for navigation
  * - For OIDC/SAML flows with sessionId+requestId: completes flow directly via server action
  * - For device flows: returns URL to signed-in page
@@ -88,14 +124,15 @@ export async function getNextUrl(
 ): Promise<string> {
   console.log("getNextUrl called with:", command, "defaultRedirectUri:", defaultRedirectUri);
 
-  // finish Device Authorization Flow
+  // Device Authorization Flow: identity is established, consent is not.
   if (
     "requestId" in command &&
     command.requestId.startsWith("device_") &&
     ("loginName" in command || "sessionId" in command)
   ) {
-    const result = goToSignedInPage({
+    const result = goToDeviceConsent({
       ...command,
+      requestId: command.requestId,
       organization: command.organization,
     });
     console.log("getNextUrl: Got Device flow result");

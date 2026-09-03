@@ -1,7 +1,8 @@
 "use client";
 
 import { Alert } from "@/components/alert";
-import { getDeviceAuthorizationRequest } from "@/lib/server/oidc";
+import { handleServerActionResponse } from "@/lib/client-utils";
+import { startDeviceAuthorization } from "@/lib/server/device";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -32,30 +33,31 @@ export function DeviceCodeForm({ userCode }: { userCode?: string }) {
 
   const [loading, setLoading] = useState<boolean>(false);
 
+  // VENHO FORK: submitting the code no longer goes to consent. It pairs the
+  // request with this browser (an httpOnly cookie — see lib/device.ts) and
+  // hands back the identity step, because consent is a decision about which
+  // account gets bound to the device and there is no account here yet. The
+  // server picks that step: the account picker when the browser already holds
+  // sessions, the login name screen when it does not.
   async function submitCodeAndContinue(value: Inputs): Promise<boolean | void> {
+    setError("");
     setLoading(true);
 
-    const response = await getDeviceAuthorizationRequest(value.userCode)
+    const response = await startDeviceAuthorization(value.userCode)
       .catch(() => {
-        setError("Could not continue the request");
+        setError(t("usercode.error"));
         return;
       })
       .finally(() => {
         setLoading(false);
       });
 
-    if (!response || !response.deviceAuthorizationRequest?.id) {
-      setError("Could not continue the request");
+    if (!response) {
+      setError(t("usercode.error"));
       return;
     }
 
-    return router.push(
-      `/device/consent?` +
-        new URLSearchParams({
-          requestId: `device_${response.deviceAuthorizationRequest.id}`,
-          user_code: value.userCode,
-        }).toString(),
-    );
+    handleServerActionResponse(response, router, () => {}, setError);
   }
 
   return (
