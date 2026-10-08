@@ -1,7 +1,14 @@
 import { Translated } from "@/components/translated";
-import { lowerCaseValidator, numberValidator, symbolValidator, upperCaseValidator } from "@/helpers/validators";
+import {
+  lowerCaseValidator,
+  maxLengthValidator,
+  numberValidator,
+  symbolValidator,
+  upperCaseValidator,
+} from "@/helpers/validators";
 import { PasswordComplexitySettings } from "@zitadel/proto/zitadel/settings/v2/password_settings_pb";
 import { useTranslations } from "next-intl";
+import { ReactNode } from "react";
 
 type Props = {
   passwordComplexitySettings: PasswordComplexitySettings;
@@ -9,105 +16,127 @@ type Props = {
   equals: boolean;
 };
 
-function CheckIcon({ title }: { title: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="las la-check mr-2 h-6 w-6 flex-none text-lg text-green-500 dark:text-green-500"
-      role="img"
-    >
-      <title>{title}</title>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-    </svg>
-  );
-}
-
-function CrossIcon({ title }: { title: string }) {
-  return (
-    <svg
-      className="las la-times text-warn-light-500 dark:text-warn-dark-500 mr-2 h-6 w-6 flex-none text-lg"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      role="img"
-    >
-      <title>{title}</title>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  );
-}
-
-function renderIcon(matched: boolean, t: ReturnType<typeof useTranslations>) {
-  return matched ? <CheckIcon title={t("complexity.matches")} /> : <CrossIcon title={t("complexity.doesNotMatch")} />;
-}
-const desc = "text-14px leading-4 text-input-light-label dark:text-input-dark-label";
-
+/**
+ * VENHO FORK: the designs' "Your password must have:" checklist (Figma
+ * "Password requirements"). Every rule carries a 12px tick — muted while
+ * unmet, green once met — rather than upstream's red cross / green tick at
+ * 24px, so an empty form reads as a list of things to do, not of failures.
+ *
+ * Two columns in the designs' order: length, case and confirmation on the
+ * left; the upper limit, number and symbol on the right. Rules the instance
+ * does not require are left out; the confirmation and the upper limit always
+ * apply.
+ */
 export function PasswordComplexity({ passwordComplexitySettings, password, equals }: Props) {
   const t = useTranslations("password");
-  const hasMinLength = password?.length >= passwordComplexitySettings.minLength;
-  const hasSymbol = symbolValidator(password);
-  const hasNumber = numberValidator(password);
-  const hasUppercase = upperCaseValidator(password);
-  const hasLowercase = lowerCaseValidator(password);
+
+  const left: ReactNode[] = [];
+  const right: ReactNode[] = [];
+
+  if (passwordComplexitySettings.minLength != undefined) {
+    left.push(
+      <Rule key="length" testId="length-check" met={password?.length >= passwordComplexitySettings.minLength} t={t}>
+        <Translated
+          i18nKey="complexity.length"
+          namespace="password"
+          data={{ minLength: passwordComplexitySettings.minLength.toString() }}
+        />
+      </Rule>,
+    );
+  }
+  if (passwordComplexitySettings.requiresLowercase) {
+    left.push(
+      <Rule key="lowercase" testId="lowercase-check" met={lowerCaseValidator(password)} t={t}>
+        <Translated i18nKey="complexity.hasLowercase" namespace="password" />
+      </Rule>,
+    );
+  }
+  if (passwordComplexitySettings.requiresUppercase) {
+    left.push(
+      <Rule key="uppercase" testId="uppercase-check" met={upperCaseValidator(password)} t={t}>
+        <Translated i18nKey="complexity.hasUppercase" namespace="password" />
+      </Rule>,
+    );
+  }
+  left.push(
+    <Rule key="equals" testId="equal-check" met={equals} t={t}>
+      <Translated i18nKey="complexity.equals" namespace="password" />
+    </Rule>,
+  );
+
+  right.push(
+    <Rule key="max" testId="max-length-check" met={!!password && maxLengthValidator(password)} t={t}>
+      <Translated i18nKey="complexity.maxLength" namespace="password" />
+    </Rule>,
+  );
+  if (passwordComplexitySettings.requiresNumber) {
+    right.push(
+      <Rule key="number" testId="number-check" met={numberValidator(password)} t={t}>
+        <Translated i18nKey="complexity.hasNumber" namespace="password" />
+      </Rule>,
+    );
+  }
+  if (passwordComplexitySettings.requiresSymbol) {
+    right.push(
+      <Rule key="symbol" testId="symbol-check" met={symbolValidator(password)} t={t}>
+        <Translated i18nKey="complexity.hasSymbol" namespace="password" />
+      </Rule>,
+    );
+  }
 
   return (
-    <div className="mb-4 grid grid-cols-2 gap-x-8 gap-y-2">
-      {passwordComplexitySettings.minLength != undefined ? (
-        <div className="flex flex-row items-center" data-testid="length-check">
-          {renderIcon(hasMinLength, t)}
-          <span className={desc}>
-            <Translated
-              i18nKey="complexity.length"
-              namespace="password"
-              data={{ minLength: passwordComplexitySettings.minLength.toString() }}
-            />
-          </span>
-        </div>
-      ) : null}
-      {passwordComplexitySettings.requiresSymbol && (
-        <div className="flex flex-row items-center" data-testid="symbol-check">
-          {renderIcon(hasSymbol, t)}
-          <span className={desc}>
-            <Translated i18nKey="complexity.hasSymbol" namespace="password" />
-          </span>
-        </div>
-      )}
-      {passwordComplexitySettings.requiresNumber && (
-        <div className="flex flex-row items-center" data-testid="number-check">
-          {renderIcon(hasNumber, t)}
-          <span className={desc}>
-            <Translated i18nKey="complexity.hasNumber" namespace="password" />
-          </span>
-        </div>
-      )}
-      {passwordComplexitySettings.requiresUppercase && (
-        <div className="flex flex-row items-center" data-testid="uppercase-check">
-          {renderIcon(hasUppercase, t)}
-          <span className={desc}>
-            <Translated i18nKey="complexity.hasUppercase" namespace="password" />
-          </span>
-        </div>
-      )}
-      {passwordComplexitySettings.requiresLowercase && (
-        <div className="flex flex-row items-center" data-testid="lowercase-check">
-          {renderIcon(hasLowercase, t)}
-          <span className={desc}>
-            <Translated i18nKey="complexity.hasLowercase" namespace="password" />
-          </span>
-        </div>
-      )}
-      <div className="flex flex-row items-center" data-testid="equal-check">
-        {renderIcon(equals, t)}
-        <span className={desc}>
-          <Translated i18nKey="complexity.equals" namespace="password" />
-        </span>
+    <div className="flex w-full flex-col gap-2" data-testid="password-complexity">
+      <p className="text-venho-light-secondary dark:text-venho-dark-secondary text-xs leading-4">
+        <Translated i18nKey="complexity.title" namespace="password" />
+      </p>
+      <div className="flex w-full flex-row gap-10">
+        <ul className="flex min-w-0 flex-1 flex-col gap-1.5">{left}</ul>
+        <ul className="flex min-w-0 flex-1 flex-col gap-1.5">{right}</ul>
       </div>
     </div>
+  );
+}
+
+function Rule({
+  met,
+  testId,
+  t,
+  children,
+}: {
+  met: boolean;
+  testId: string;
+  t: ReturnType<typeof useTranslations>;
+  children: ReactNode;
+}) {
+  return (
+    <li className="flex flex-row items-center gap-2" data-testid={testId} data-met={met}>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={2}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={
+          met
+            ? "text-venho-light-success dark:text-venho-dark-success size-3 flex-none"
+            : "text-venho-light-muted dark:text-venho-dark-muted size-3 flex-none"
+        }
+        role="img"
+      >
+        <title>{met ? t("complexity.matches") : t("complexity.doesNotMatch")}</title>
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+      <span
+        className={
+          met
+            ? "text-text-light-500 dark:text-text-dark-500 text-xs leading-4 whitespace-nowrap"
+            : "text-venho-light-muted dark:text-venho-dark-muted text-xs leading-4 whitespace-nowrap"
+        }
+      >
+        {children}
+      </span>
+    </li>
   );
 }

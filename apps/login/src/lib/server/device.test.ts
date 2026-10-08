@@ -100,16 +100,33 @@ describe("startDeviceAuthorization", () => {
     const res = await startDeviceAuthorization(USER_CODE);
 
     expect(m.rememberDeviceAuthorization).toHaveBeenCalledWith({ requestId: "device_abc", userCode: USER_CODE });
-    // Not /device/consent: consent comes after authentication now.
-    expect(res).toEqual({ redirect: "/loginname?requestId=device_abc" });
+    // Not /device/consent: consent comes after authentication now. With no
+    // intent and no sessions, a newcomer is the likelier visitor.
+    expect(res).toEqual({ redirect: "/signup?requestId=device_abc" });
   });
 
-  test("offers the account picker when the browser already holds sessions", async () => {
+  test("with no intent, offers the account picker when the browser already holds sessions", async () => {
     const m = await mocks();
     m.getDeviceAuthorizationRequest.mockResolvedValue({ deviceAuthorizationRequest: { id: "abc" } } as never);
     m.getAllSessions.mockResolvedValue([cookie] as never);
 
     expect(await startDeviceAuthorization(USER_CODE)).toEqual({ redirect: "/accounts?requestId=device_abc" });
+  });
+
+  test.each([
+    // [intent, browser holds sessions, first page]
+    ["signup", false, "/signup"],
+    ["signup", true, "/signup"],
+    ["login", false, "/loginname"],
+    ["login", true, "/accounts"],
+    ["bogus", false, "/signup"],
+    ["bogus", true, "/accounts"],
+  ])("intent=%s, sessions=%s → %s", async (intent, hasSessions, page) => {
+    const m = await mocks();
+    m.getDeviceAuthorizationRequest.mockResolvedValue({ deviceAuthorizationRequest: { id: "abc" } } as never);
+    m.getAllSessions.mockResolvedValue((hasSessions ? [cookie] : []) as never);
+
+    expect(await startDeviceAuthorization(USER_CODE, intent)).toEqual({ redirect: `${page}?requestId=device_abc` });
   });
 
   test("a bad code fails here, before any sign-in is asked for", async () => {

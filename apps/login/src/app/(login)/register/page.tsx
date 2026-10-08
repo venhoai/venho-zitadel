@@ -1,18 +1,12 @@
 import { Alert } from "@/components/alert";
 import { DynamicTheme } from "@/components/dynamic-theme";
 import { RegisterForm } from "@/components/register-form";
-import { SignInWithIdp } from "@/components/sign-in-with-idp";
 import { Translated } from "@/components/translated";
+import { getAllSessionCookieIds } from "@/lib/cookies";
 import { getServiceConfig } from "@/lib/service-url";
-import {
-  getActiveIdentityProviders,
-  getBrandingSettings,
-  getDefaultOrg,
-  getLegalAndSupportSettings,
-  getLoginSettings,
-  getPasswordComplexitySettings,
-} from "@/lib/zitadel";
+import { getBrandingSettings, getDefaultOrg, getLoginSettings, getPasswordComplexitySettings } from "@/lib/zitadel";
 import { Organization } from "@zitadel/proto/zitadel/org/v2/org_pb";
+import { PasskeysType } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
@@ -26,9 +20,9 @@ export default async function Page(props: { searchParams: Promise<Record<string 
   const searchParams = await props.searchParams;
 
   let { firstname, lastname, email, organization, requestId } = searchParams;
-
-  const tRegister = await getTranslations("register");
-  const registerDescription = tRegister("description");
+  // The organization as the caller gave it, for links back into the flow;
+  // `organization` itself falls back to the default org below.
+  const requestedOrganization = organization;
 
   const _headers = await headers();
   const { serviceConfig } = getServiceConfig(_headers);
@@ -40,18 +34,21 @@ export default async function Page(props: { searchParams: Promise<Record<string 
     }
   }
 
-  const legal = await getLegalAndSupportSettings({ serviceConfig, organization });
   const passwordComplexitySettings = await getPasswordComplexitySettings({ serviceConfig, organization });
-
   const branding = await getBrandingSettings({ serviceConfig, organization });
-
   const loginSettings = await getLoginSettings({ serviceConfig, organization });
 
-  const identityProviders = await getActiveIdentityProviders({ serviceConfig, orgId: organization }).then((resp) => {
-    return resp.identityProviders.filter((idp) => {
-      return idp.options?.isAutoCreation || idp.options?.isCreationAllowed; // check if IDP allows to create account automatically or manual creation is allowed
-    });
-  });
+  // VENHO FORK: "Already have an account? Log in" goes where Get started's
+  // does — the account picker when this browser holds sessions.
+  const params = new URLSearchParams();
+  if (requestId) {
+    params.set("requestId", requestId);
+  }
+  if (requestedOrganization) {
+    params.set("organization", requestedOrganization);
+  }
+  const sessionIds = await getAllSessionCookieIds();
+  const loginHref = (sessionIds?.length ? "/accounts?" : "/loginname?") + params;
 
   if (!loginSettings) {
     return (
@@ -69,7 +66,11 @@ export default async function Page(props: { searchParams: Promise<Record<string 
     );
   }
 
-  if (!loginSettings?.allowRegister && (!loginSettings.allowExternalIdp || identityProviders.length === 0)) {
+  const canSignUp =
+    loginSettings.allowRegister &&
+    (loginSettings.allowLocalAuthentication || loginSettings.passkeysType === PasskeysType.ALLOWED);
+
+  if (!canSignUp) {
     return (
       <DynamicTheme branding={branding}>
         <div className="flex flex-col space-y-4">
@@ -85,46 +86,32 @@ export default async function Page(props: { searchParams: Promise<Record<string 
     );
   }
 
+  // VENHO FORK: the designs give sign-up a heading and nothing else, and no
+  // external providers — those are on Get started (/signup), one step back.
   return (
     <DynamicTheme branding={branding}>
-      <div className="flex flex-col space-y-4">
+      <div className="flex flex-col">
         <h1>
           <Translated i18nKey="title" namespace="register" />
         </h1>
-        {/* VENHO FORK: the designs give sign-up a heading and nothing else.
-            Rendered conditionally rather than deleted so an operator who does
-            want a subtitle only has to set the string. */}
-        {registerDescription && <p className="ztdl-p">{registerDescription}</p>}
       </div>
 
       <div className="w-full">
-        {!organization && (
+        {!organization ? (
           <Alert>
             <Translated i18nKey="unknownContext" namespace="error" />
           </Alert>
-        )}
-
-        {legal && passwordComplexitySettings && organization && loginSettings.allowLocalAuthentication && (
+        ) : (
           <RegisterForm
-            idpCount={!loginSettings?.allowExternalIdp ? 0 : identityProviders.length}
-            legal={legal}
             organization={organization}
             firstname={firstname}
             lastname={lastname}
             email={email}
             requestId={requestId}
             loginSettings={loginSettings}
-          ></RegisterForm>
-        )}
-
-        {loginSettings?.allowExternalIdp && !!identityProviders.length && (
-          <>
-            <SignInWithIdp
-              identityProviders={identityProviders}
-              requestId={requestId}
-              organization={organization}
-            ></SignInWithIdp>
-          </>
+            passwordComplexitySettings={passwordComplexitySettings}
+            loginHref={loginHref}
+          />
         )}
       </div>
     </DynamicTheme>

@@ -5,7 +5,6 @@ import { LanguageProvider } from "@/components/language-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { Skeleton } from "@/components/skeleton";
 import { ThemeProvider } from "@/components/theme-provider";
-import { BrandLogo } from "@/components/venho/brand-logo";
 import { LANGS, getLanguage } from "@/lib/i18n";
 import { getServiceConfig } from "@/lib/service-url";
 import { getAllowedLanguages } from "@/lib/zitadel";
@@ -73,12 +72,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Suspense
               fallback={
                 <BackgroundWrapper
-                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col`}
+                  className={`bg-background-light-500 dark:bg-background-dark-500 relative flex min-h-screen flex-col`}
                 >
-                  <div className="absolute top-[32px] left-[32px] z-10">
-                    <BrandLogo />
-                  </div>
-                  <div className="relative mx-auto w-full max-w-[380px] px-4 pt-[140px] pb-8">
+                  <div className="relative mx-auto w-full max-w-[412px] px-4 pt-[140px] pb-8">
                     <Skeleton>
                       <div className="h-40"></div>
                     </Skeleton>
@@ -87,19 +83,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               }
             >
               <LanguageProvider>
+                {/* VENHO FORK: a plain page on the brand ground (#0c111d, the
+                    500 shade — 600 is darker than the designs), with no logo
+                    and no glows: the October frames dropped both. */}
                 <BackgroundWrapper
-                  className={`bg-background-light-600 dark:bg-background-dark-600 relative flex min-h-screen flex-col`}
+                  className={`bg-background-light-500 dark:bg-background-dark-500 relative flex min-h-screen flex-col`}
                 >
-                  {/* VENHO FORK: the brand mark is page chrome, pinned to the
-                      top-left on every screen, rather than something each page
-                      or the card draws for itself. */}
-                  <div className="absolute top-[32px] left-[32px] z-10">
-                    <BrandLogo />
-                  </div>
-
-                  {/* The designs sit the column near the top of the viewport
-                      (~140px), not vertically centred, so the form does not
-                      jump as its height changes between steps. */}
+                  {/* The designs sit the column 140px from the top, not
+                      vertically centred, so the form does not jump as its
+                      height changes between steps. */}
                   <div className="relative mx-auto w-full max-w-[1100px] px-4 pt-[140px] pb-8">
                     <div>{children}</div>
 

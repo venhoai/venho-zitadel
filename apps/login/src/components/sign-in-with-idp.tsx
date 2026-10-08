@@ -70,14 +70,19 @@ export function SignInWithIdp({
   };
 
   return (
-    <div className="flex w-full flex-col space-y-2 text-sm">
+    <div className="flex w-full flex-col gap-4 text-sm">
       {state?.samlData && <AutoSubmitForm url={state.samlData.url} fields={state.samlData.fields} />}
+      {/* VENHO FORK: the designs' "OR" legend on a rule, not a line of text. */}
       {showLabel && (
-        <p className="ztdl-p text-center">
-          <Translated i18nKey="orSignInWith" namespace="idp" />
-        </p>
+        <div className="flex items-center gap-2" data-testid="idp-separator">
+          <span aria-hidden className="bg-venho-light-border dark:bg-venho-dark-border h-px flex-1" />
+          <span className="text-venho-light-muted dark:text-venho-dark-muted text-xs leading-4 uppercase">
+            <Translated i18nKey="orSignInWith" namespace="idp" />
+          </span>
+          <span aria-hidden className="bg-venho-light-border dark:bg-venho-dark-border h-px flex-1" />
+        </div>
       )}
-      {!!identityProviders?.length && identityProviders?.map(renderIDPButton)}
+      {!!identityProviders?.length && <div className="flex flex-col gap-2">{identityProviders.map(renderIDPButton)}</div>}
       {state?.error && (
         <div className="py-4">
           <Alert>{state?.error}</Alert>

@@ -43,21 +43,11 @@ test("sign-up triggers a verification email", async ({ page, request }) => {
   await page.getByTestId("lastname-text-input").fill("E2E");
   await page.getByTestId("email-text-input").fill(email);
 
-  // Accept ToS/privacy when the instance shows them.
-  for (const id of ["tos-checkbox", "privacypolicy-checkbox"]) {
-    const box = page.getByTestId(id);
-    if (await box.count()) await box.click();
-  }
-
-  // If a method chooser is shown, pick password.
-  const pwRadio = page.getByTestId("password-radio");
-  if (await pwRadio.count()) await pwRadio.click();
-
-  await page.getByTestId("submit-button").click();
-
-  await page.getByTestId("password-text-input").waitFor({ timeout: 15000 });
+  // One page: the password, its confirmation and the agreement sit with the
+  // names and the address.
   await page.getByTestId("password-text-input").fill("SignupE2e!12345");
   await page.getByTestId("password-confirm-text-input").fill("SignupE2e!12345");
+  await page.getByTestId("agreement-checkbox").click();
   await page.getByTestId("submit-button").click();
 
   // The flow must land on /verify and claim the code was sent…

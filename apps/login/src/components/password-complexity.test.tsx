@@ -15,6 +15,8 @@ describe("<PasswordComplexity/>", () => {
         equals: "Password confirmation matched.",
         matches: "Matches",
         doesNotMatch: "Doesn't match",
+        title: "Your password must have:",
+        maxLength: "Password < 70 chars",
       },
     },
   };
@@ -69,7 +71,7 @@ describe("<PasswordComplexity/>", () => {
     expect(screen.queryByTestId("length-check")).toBeInTheDocument();
   });
 
-  test("should render check icon when password meets length requirement", () => {
+  test("a met rule shows the success tick", () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <PasswordComplexity
@@ -90,11 +92,11 @@ describe("<PasswordComplexity/>", () => {
     );
 
     const lengthCheck = screen.getByTestId("length-check");
-    const svg = lengthCheck.querySelector("svg");
-    expect(svg).toHaveClass("text-green-500");
+    expect(lengthCheck).toHaveAttribute("data-met", "true");
+    expect(lengthCheck.querySelector("svg")).toHaveClass("dark:text-venho-dark-success");
   });
 
-  test("should render cross icon when password does not meet length requirement", () => {
+  test("an unmet rule shows a muted tick, not a cross", () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <PasswordComplexity
@@ -115,8 +117,8 @@ describe("<PasswordComplexity/>", () => {
     );
 
     const lengthCheck = screen.getByTestId("length-check");
-    const svg = lengthCheck.querySelector("svg");
-    expect(svg).toHaveClass("text-warn-light-500");
+    expect(lengthCheck).toHaveAttribute("data-met", "false");
+    expect(lengthCheck.querySelector("svg")).toHaveClass("dark:text-venho-dark-muted");
   });
 
   test("should render all complexity checks when all requirements are enabled", () => {
@@ -277,5 +279,31 @@ describe("<PasswordComplexity/>", () => {
     expect(screen.queryByTestId("number-check")).not.toBeInTheDocument();
     expect(screen.queryByTestId("uppercase-check")).not.toBeInTheDocument();
     expect(screen.queryByTestId("lowercase-check")).not.toBeInTheDocument();
+  });
+
+  test("the upper limit counts characters and the 72 bytes bcrypt can store", () => {
+    const settings = {
+      minLength: BigInt(1),
+      requiresLowercase: false,
+      requiresUppercase: false,
+      requiresNumber: false,
+      requiresSymbol: false,
+      resourceOwnerType: 0,
+    } as any;
+    const met = (password: string) => {
+      cleanup();
+      render(
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <PasswordComplexity password={password} equals passwordComplexitySettings={settings} />
+        </NextIntlClientProvider>,
+      );
+      return screen.getByTestId("max-length-check").getAttribute("data-met");
+    };
+
+    expect(met("a".repeat(69))).toBe("true");
+    expect(met("a".repeat(70))).toBe("false");
+    // 37 two-byte characters: under 70 characters, but 74 bytes.
+    expect(met("é".repeat(37))).toBe("false");
+    expect(met("")).toBe("false");
   });
 });

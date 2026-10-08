@@ -37,14 +37,30 @@ const logger = createLogger("device");
 export type DeviceActionResponse = { redirect: string } | { error: string };
 
 /**
+ * Which first page the device asked for. venho-desktop appends `intent=` to
+ * the verification link its two buttons open: "Get started" → `signup`,
+ * "Log in" → `login`. Anything else — Mind 2's QR code, a code typed by
+ * hand — carries none.
+ */
+export type DeviceIntent = "signup" | "login";
+
+/**
  * Step one: the user typed the code shown on their device.
  *
  * Resolves the request so a wrong code fails here rather than after a sign-in,
- * pairs it with this browser, and answers with where identity gets established
- * — the account picker when there are sessions to choose from, the login name
- * screen when there are none. Consent comes after that, not before.
+ * pairs it with this browser, and answers with where identity gets established.
+ * Consent comes after that, not before.
+ *
+ * That first page follows the device's intent: `signup` → Get started;
+ * `login` → the account picker, or the login name screen when this browser
+ * holds no sessions. With no intent the browser decides: sessions mean someone
+ * has been here before (picker), none means probably a newcomer (Get started,
+ * whose "Log in" is one click away).
  */
-export async function startDeviceAuthorization(userCode: string): Promise<{ redirect: string } | { error: string }> {
+export async function startDeviceAuthorization(
+  userCode: string,
+  intent?: string,
+): Promise<{ redirect: string } | { error: string }> {
   const _headers = await headers();
   const { serviceConfig } = getServiceConfig(_headers);
   const t = await getTranslations("error");
@@ -68,7 +84,19 @@ export async function startDeviceAuthorization(userCode: string): Promise<{ redi
   const params = new URLSearchParams({ requestId });
   const sessions = await getAllSessions();
 
-  return { redirect: (sessions.length ? "/accounts?" : "/loginname?") + params };
+  return { redirect: identityStep(intent, sessions.length > 0) + params };
+}
+
+function identityStep(intent: string | undefined, hasSessions: boolean): string {
+  // The intent arrives from a URL by way of the client: anything but the two
+  // known values is treated as no intent at all.
+  if (intent === "signup") {
+    return "/signup?";
+  }
+  if (intent === "login") {
+    return hasSessions ? "/accounts?" : "/loginname?";
+  }
+  return hasSessions ? "/accounts?" : "/signup?";
 }
 
 async function loadValidSession(sessionId: string, organization?: string) {

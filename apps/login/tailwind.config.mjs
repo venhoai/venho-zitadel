@@ -130,6 +130,39 @@ export default {
             hoverborder: "#ffffff40",
           },
         },
+        // VENHO FORK: the October 2026 frames' shadcn tokens that the
+        // branding-derived scale has no shade for. Dark is the designed set;
+        // light is Figma's own fallback values, carried for completeness.
+        //   muted        base-muted-foreground   supporting text, legends
+        //   border       base-border             account tiles, separators
+        //   wash         base-muted              avatar fallback ground
+        //   secondary    base-secondary-foreground  inline text links
+        //   ring         base-ring               focused field border
+        //   focus        alpha-90                focused field halo (3px)
+        //   destructive  base-destructive        field in error
+        //   success      tailwind green-400      a password rule that is met
+        venho: {
+          light: {
+            muted: "#737373",
+            border: "#e5e5e5",
+            wash: "#f5f5f5",
+            secondary: "#171717",
+            ring: "#a3a3a3",
+            focus: "rgba(10,10,10,0.1)",
+            destructive: "#dc2626",
+            success: "#16a34a",
+          },
+          dark: {
+            muted: "#85888e",
+            border: "#ffffff1a",
+            wash: "#ffffff14",
+            secondary: "#cecfd2",
+            ring: "#ffffff80",
+            focus: "#ffffff1a",
+            destructive: "#fb7185",
+            success: "#4ade80",
+          },
+        },
         button: {
           light: {
             border: "#0000001f",

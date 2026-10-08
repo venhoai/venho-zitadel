@@ -66,34 +66,29 @@ test("device-grant sign-up: consent after identity, and only a click binds the d
   const email = `device-signup-${Date.now()}@venho.localhost`;
   const password = "DeviceSignup!12345";
 
-  // 2. Browser lands on the user-code page (the proxy's /device rewrite).
-  await page.goto(`${LOGIN}/device?user_code=${encodeURIComponent(user_code)}`);
+  // 2. Browser lands on the user-code page (the proxy's /device rewrite),
+  //    with the intent venho-desktop's "Get started" adds to the link.
+  await page.goto(`${LOGIN}/device?user_code=${encodeURIComponent(user_code)}&intent=signup`);
   await page.getByTestId("submit-button").click();
 
-  // 3. Identity FIRST. A fresh browser has no sessions, so the code leads to
-  //    /loginname — never to a consent screen for nobody.
-  await page.waitForURL(/\/loginname\?/, { timeout: 20_000 });
+  // 3. Identity FIRST: the code leads to Get started — never to a consent
+  //    screen for nobody.
+  await page.waitForURL(/\/signup\?/, { timeout: 20_000 });
   expect(page.url()).toMatch(/requestId=device_/);
   const requestId = new URL(page.url()).searchParams.get("requestId")!;
 
-  // 4. Sign up.
-  await page.getByTestId("register-button").click();
+  // 4. Sign up with email.
+  await page.getByTestId("signup-email").click();
   await page.waitForURL(/\/register\?/, { timeout: 20_000 });
   expect(page.url()).toMatch(/requestId=device_/);
   await page.getByTestId("firstname-text-input").fill("Device");
   await page.getByTestId("lastname-text-input").fill("Signup");
   await page.getByTestId("email-text-input").fill(email);
-  for (const id of ["tos-checkbox", "privacypolicy-checkbox"]) {
-    const box = page.getByTestId(id);
-    if (await box.count()) await box.click();
-  }
-  const pwRadio = page.getByTestId("password-radio");
-  if (await pwRadio.count()) await pwRadio.click();
-  await page.getByTestId("submit-button").click();
-
-  await page.getByTestId("password-text-input").waitFor({ timeout: 20_000 });
+  // One page: the password, its confirmation and the agreement sit with the
+  // names and the address.
   await page.getByTestId("password-text-input").fill(password);
   await page.getByTestId("password-confirm-text-input").fill(password);
+  await page.getByTestId("agreement-checkbox").click();
   await page.getByTestId("submit-button").click();
 
   // 5. Must land on /verify with the device requestId AND the codeSent claim…
@@ -175,12 +170,14 @@ test("device-grant sign-up: consent after identity, and only a click binds the d
   });
   const secondAuth = await second.json();
 
-  await page.goto(`${LOGIN}/device?user_code=${encodeURIComponent(secondAuth.user_code)}`);
+  // This time as the desktop's "Log in" opens it.
+  await page.goto(`${LOGIN}/device?user_code=${encodeURIComponent(secondAuth.user_code)}&intent=login`);
   await page.getByTestId("submit-button").click();
 
   await page.waitForURL(/\/accounts\?/, { timeout: 20_000 });
   expect(page.url()).toMatch(/requestId=device_/);
-  await page.getByTestId("continue-as-button").click();
+  // The only session this browser holds is the account just created.
+  await page.getByTestId("account-tile").click();
 
   await page.waitForURL(/\/device\/consent\?/, { timeout: 20_000 });
   const secondAllow = page.locator('[data-testid="submit-button"]:visible');

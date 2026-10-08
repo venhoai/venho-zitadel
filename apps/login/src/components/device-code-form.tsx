@@ -17,7 +17,7 @@ type Inputs = {
   userCode: string;
 };
 
-export function DeviceCodeForm({ userCode }: { userCode?: string }) {
+export function DeviceCodeForm({ userCode, intent }: { userCode?: string; intent?: string }) {
   const router = useRouter();
 
   const { register, handleSubmit, formState } = useForm<Inputs>({
@@ -37,13 +37,13 @@ export function DeviceCodeForm({ userCode }: { userCode?: string }) {
   // request with this browser (an httpOnly cookie — see lib/device.ts) and
   // hands back the identity step, because consent is a decision about which
   // account gets bound to the device and there is no account here yet. The
-  // server picks that step: the account picker when the browser already holds
-  // sessions, the login name screen when it does not.
+  // server picks that step from the device's `intent` (see
+  // lib/server/device.ts) and whether the browser already holds sessions.
   async function submitCodeAndContinue(value: Inputs): Promise<boolean | void> {
     setError("");
     setLoading(true);
 
-    const response = await startDeviceAuthorization(value.userCode)
+    const response = await startDeviceAuthorization(value.userCode, intent)
       .catch(() => {
         setError(t("usercode.error"));
         return;

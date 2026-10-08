@@ -32,13 +32,14 @@ describe("DeviceCodeForm", () => {
     const { startDeviceAuthorization } = await import("@/lib/server/device");
     vi.mocked(startDeviceAuthorization).mockResolvedValue({ redirect: "/accounts?requestId=device_abc" });
 
-    const { getByTestId } = render(<DeviceCodeForm userCode="ABCD-1234" />);
+    const { getByTestId } = render(<DeviceCodeForm userCode="ABCD-1234" intent="login" />);
     // react-hook-form settles `isValid` a tick after mount, and the button is
     // disabled until it does.
     await waitFor(() => expect(getByTestId("submit-button")).not.toBeDisabled());
     fireEvent.click(getByTestId("submit-button"));
 
-    await waitFor(() => expect(startDeviceAuthorization).toHaveBeenCalledWith("ABCD-1234"));
+    // The device's intent rides along: the server picks the first page by it.
+    await waitFor(() => expect(startDeviceAuthorization).toHaveBeenCalledWith("ABCD-1234", "login"));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/accounts?requestId=device_abc"));
   });
 

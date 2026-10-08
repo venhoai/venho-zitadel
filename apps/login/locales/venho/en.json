@@ -58,6 +58,16 @@
       "labels": {
         "password": "Password"
       }
+    },
+    "complexity": {
+      "title": "Your password must have:",
+      "length": "{minLength} or more characters",
+      "hasLowercase": "One lowercase character",
+      "hasUppercase": "One uppercase character",
+      "hasNumber": "One number",
+      "hasSymbol": "One symbol",
+      "equals": "Password confirmation matched",
+      "maxLength": "Password < 70 chars"
     }
   },
   "common": {
@@ -67,6 +77,36 @@
   "register": {
     "title": "Sign up",
     "description": "",
+    "loginPrompt": "Already have an account?",
+    "login": "Log in",
+    "labels": {
+      "firstname": "First name",
+      "lastname": "Last name",
+      "email": "Email"
+    },
+    "placeholders": {
+      "firstname": "First name",
+      "lastname": "Last name",
+      "email": "Enter your email",
+      "password": "••••••••"
+    },
+    "agreement": "I agree to venho.ai <eula>EULA</eula> and <privacy>Privacy Policy</privacy>",
+    "legalNote": "This site uses Decentralized Identity. <eula>EULA</eula> and <privacy>Privacy policy</privacy> apply.",
+    "passkeyInstead": "Sign up with a passkey instead",
+    "emailExists": "Account with this email already exists.",
+    "loginInstead": "Login instead?",
+    "submit": "Continue",
+    "password": {
+      "labels": {
+        "password": "Password",
+        "confirmPassword": "Confirm password"
+      }
+    }
+  },
+  "signup": {
+    "title": "Get started",
+    "description": "Set up your Venho account in a few seconds",
+    "continueWithEmail": "Continue with email",
     "loginPrompt": "Already have an account?",
     "login": "Log in"
   },
@@ -93,9 +133,8 @@
   },
   "accounts": {
     "title": "Log in",
-    "description": "Choose an Account to log in with.",
-    "addAnother": "Add another Account",
-    "continueAs": "Continue as {name}"
+    "description": "Choose an Account to log in with:",
+    "addAnother": "Add another Account"
   },
   "mfa": {
     "set": {

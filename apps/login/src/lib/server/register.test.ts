@@ -197,3 +197,25 @@ describe("registerUserAndLinkToIDP — email verification is not optional", () =
     expect(m.verifyHelper.checkMFAFactors).not.toHaveBeenCalled();
   });
 });
+
+describe("registerUser — an address that already has an account", () => {
+  test("says so distinctly, so the form can offer to log in instead", async () => {
+    const { Code, ConnectError } = await import("@zitadel/client");
+    const zitadel = await import("../zitadel");
+    vi.mocked(zitadel.addHumanUser).mockRejectedValue(
+      new ConnectError("User already exists (V3-DKcYh)", Code.AlreadyExists),
+    );
+
+    expect(await registerUser({ ...command, password: "hunter2!" })).toEqual({
+      error: "emailExists",
+      emailExists: true,
+    });
+  });
+
+  test("any other failure stays the generic one", async () => {
+    const zitadel = await import("../zitadel");
+    vi.mocked(zitadel.addHumanUser).mockRejectedValue(new Error("boom"));
+
+    expect(await registerUser({ ...command, password: "hunter2!" })).toEqual({ error: "errors.couldNotCreateUser" });
+  });
+});

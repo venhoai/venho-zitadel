@@ -1,6 +1,6 @@
 "use client";
 
-import { APPEARANCE_STYLES, getComponentRoundness, getThemeConfig } from "@/lib/theme";
+import { getComponentRoundness } from "@/lib/theme";
 import { clsx } from "clsx";
 import { Loader2Icon } from "lucide-react";
 import { ButtonHTMLAttributes, DetailedHTMLProps, forwardRef } from "react";
@@ -14,17 +14,9 @@ export type SignInWithIdentityProviderProps = DetailedHTMLProps<
   e2e?: string;
 };
 
-// Helper function to get default IDP button appearance from centralized theme system
-function getDefaultIdpButtonAppearance(): string {
-  const themeConfig = getThemeConfig();
-  const appearance = APPEARANCE_STYLES[themeConfig.appearance];
-  return appearance?.["idp-button"] || "border border-divider-light dark:border-divider-dark"; // Fallback to basic border
-}
-
 export const BaseButton = forwardRef<HTMLButtonElement, SignInWithIdentityProviderProps>(function BaseButton(props, ref) {
   const formStatus = useFormStatus();
   const buttonRoundness = getComponentRoundness("button");
-  const idpButtonAppearance = getDefaultIdpButtonAppearance();
 
   return (
     <button
@@ -33,13 +25,14 @@ export const BaseButton = forwardRef<HTMLButtonElement, SignInWithIdentityProvid
       ref={ref}
       disabled={formStatus.pending}
       className={clsx(
-        // VENHO FORK: 40px tall with the mark and label centred, matching the
-        // primary button they sit under in the designs. Upstream left the
-        // content flush left at whatever height the icon happened to impose.
-        `text-text-light-500 focus:border-primary-light-500 dark:text-text-dark-500 focus:dark:border-primary-dark-500 flex h-[40px] flex-1 cursor-pointer flex-row items-center px-4 text-sm transition-all outline-none hover:border-black hover:dark:border-white`,
+        // VENHO FORK: the designs' outline button — 36px, a faint white wash
+        // inside the input border, 16px mark and a medium label centred.
+        // Upstream left the content flush left at whatever height the icon
+        // happened to impose.
+        `text-text-light-500 dark:text-text-dark-500 flex h-9 flex-1 cursor-pointer flex-row items-center px-4 text-sm font-medium shadow-xs transition-colors outline-none`,
+        `border-input-light-border dark:border-input-dark-border bg-input-light-background dark:bg-input-dark-background border`,
+        `focus-visible:border-input-light-hoverborder focus-visible:dark:border-input-dark-hoverborder hover:bg-black/5 hover:dark:bg-white/10`,
         buttonRoundness,
-        idpButtonAppearance,
-        `bg-background-light-400 dark:bg-background-dark-500`, // Keep background as fallback for non-glass themes
         props.className,
       )}
     >

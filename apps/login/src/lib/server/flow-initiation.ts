@@ -303,7 +303,8 @@ export async function handleOIDCFlowInitiation(params: FlowInitiationParams): Pr
   }
 
   if (authRequest && authRequest.prompt.includes(Prompt.CREATE)) {
-    const registerUrl = constructUrl(request, "/register");
+    // VENHO FORK: the Get started page, not straight to the email form.
+    const registerUrl = constructUrl(request, "/signup");
     registerUrl.searchParams.set("requestId", requestId);
 
     if (organization) {

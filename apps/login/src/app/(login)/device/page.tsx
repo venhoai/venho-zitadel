@@ -17,6 +17,8 @@ export default async function Page(props: { searchParams: Promise<Record<string 
   const searchParams = await props.searchParams;
 
   const userCode = searchParams?.user_code;
+  // VENHO FORK: the first page the device asked for (see startDeviceAuthorization).
+  const intent = searchParams?.intent;
   const organization = searchParams?.organization;
 
   const _headers = await headers();
@@ -44,7 +46,7 @@ export default async function Page(props: { searchParams: Promise<Record<string 
       </div>
 
       <div className="w-full">
-        <DeviceCodeForm userCode={userCode}></DeviceCodeForm>
+        <DeviceCodeForm userCode={userCode} intent={intent}></DeviceCodeForm>
       </div>
     </DynamicTheme>
   );

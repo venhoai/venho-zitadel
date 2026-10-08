@@ -268,7 +268,10 @@ ZITADEL's own **legacy v1 login does it correctly**: `handleDeviceAuthAction`
 (`internal/api/ui/login/device_auth.go`) refuses to render approve/deny until
 `authReq.Done()`. Login V2 lost that. The fork restores it:
 
-    /device → /accounts or /loginname → … → /device/consent (Allow) → /signedin
+    /device → /signup, /accounts or /loginname → … → /device/consent (Allow) → /signedin
+
+(Which of the three comes first is the device's `intent` — see "Get started,
+and where a device lands" below.)
 
 - **`lib/device.ts`** is the browser's own record of the device authorizations it
   started: an httpOnly cookie pairing each `requestId` with the user code it came
@@ -308,6 +311,61 @@ five minutes for a real person. `deploy/venho/compose.dev.yml` sets 15m; deploye
 instances need the same, and `venho-desktop` must restart the grant cleanly on
 `expired_token`.
 
+### Get started, and where a device lands
+
+The October 2026 frames ("Venho new Sidebar UI" 1629:33983 and 1629:43388) add
+a front door for newcomers and redraw the account picker, and drop the logo and
+glows from every page (a plain `#0c111d` ground, the column 140px down — the
+sign-up frames' position, used everywhere so the flow never jumps).
+
+- **`/signup` — Get started.** "Continue with email" (the existing `/register`
+  form), an OR rule, then each external IdP that may create accounts, and
+  "Already have an account? Log in" — to `/accounts` when the browser holds
+  sessions, `/loginname` when it does not. With nothing to sign up with it
+  redirects to that login page. "Sign up" on `/loginname` and an OIDC
+  `prompt=create` now come here; an unknown email typed at `/loginname` still
+  goes straight to the `/register` form, since that person already chose email.
+- **`/accounts` — the picker, exactly as drawn.** One bordered tile per account
+  (avatar, name over login name, chevron) and "Add another Account". The
+  "Continue as" button, validity dots, "verified … ago" lines and hover-remove
+  are gone; a tile always goes through `continueWithSession`, which
+  re-authenticates when the session can no longer finish the flow. The
+  avatar is the user's profile picture where `getUserByID` finds one.
+- **`/register` — sign-up on one page** (frames 1629:33978, 1629:34106,
+  1629:34111). Names, email, password and confirmation with the live
+  "Your password must have:" checklist, one "I agree to venho.ai EULA and
+  Privacy Policy" checkbox, Continue, and "Already have an account? Log in".
+  `/register/password` (upstream's second step) is no longer linked from it.
+  Notes:
+  - The EULA and Privacy Policy links are **placeholders** fixed in the app
+    (`components/venho/legal.ts`), not read from the instance's legal settings.
+  - An address that already has an account comes back from `registerUser` as
+    `{ emailExists: true }` (ZITADEL `AlreadyExists` — the email is the
+    username) and is shown at the field with "Login instead?", which opens
+    `/loginname?loginName=…&submit=true`, i.e. straight to the password.
+  - Passwords are capped at fewer than 70 characters *and* 72 bytes
+    (`maxLengthValidator`): the instance hashes with bcrypt, which refuses more
+    than 72 bytes with a bare gRPC Unknown after the form is filled in.
+  - A passkey account is the "Sign up with a passkey instead" link (not in
+    the frames), shown when the instance allows passkeys.
+  - The field (`components/input.tsx`) and checkbox are the designs' shadcn
+    ones on **every** page: focus halo, destructive border with an alert mark
+    and the message under the field, a show/hide eye on passwords, no `*`, and
+    no blank line reserved under each field.
+- **The device says where to land.** venho-desktop's sign-in page has two
+  buttons, and appends `intent=signup` ("Get started") or `intent=login`
+  ("Log in") to the `verification_uri_complete` it opens.
+  `startDeviceAuthorization` (`lib/server/device.ts`) routes on it:
+
+  | intent | browser holds sessions | first page |
+  |---|---|---|
+  | `signup` | either | `/signup` |
+  | `login` | yes / no | `/accounts` / `/loginname` |
+  | none (Mind 2's QR, a typed code) | yes / no | `/accounts` / `/signup` |
+
+  The `/device` proxy rewrite below **must keep the whole query string**, not
+  just `user_code`, or every desktop user lands by the no-intent rule.
+
 ## Staying in sync with upstream
 
 Treat upstream as a dependency, not a one-time import:
@@ -343,7 +401,7 @@ but the server is started as `.next/standalone/apps/login/server.js` and Next
 serves static files from `<server dir>/public`, i.e.
 `.next/standalone/apps/login/public` — one level down from where the copy landed.
 Next's `output: standalone` never copies `public` itself, so **every file under
-`public/` 404s in any container build**: our logo and glows, and upstream's own
+`public/` 404s in any container build**: our brand assets at the time, and upstream's own
 `grid-*.svg` and `favicon.ico` with them. Pages and `_next/static` are unaffected,
 which is what makes it look like a routing or proxy problem rather than a
 packaging one. The script now copies `public` into `.next/standalone/apps/login/`,
@@ -386,7 +444,7 @@ user lands on the old login UI and never sees this app. The proxy has to send
 
 | Path | Target | Rewrite |
 |---|---|---|
-| `/device` | login app | `/ui/v2/login/device` (preserve `?user_code=`) |
+| `/device` | login app | `/ui/v2/login/device` (preserve the whole query: `user_code` and `intent`) |
 | `/ui/v2/login/*` | login app | — |
 | everything else | ZITADEL API | — |
 
@@ -417,8 +475,8 @@ sign-in; `VENHO_AUTH_FORCE_LOGIN` is the escape hatch — see `isLoginForced()` 
 `electron/src/auth/config.ts`.)
 
 Confirm the browser opens **this** app's `/device` page with the code prefilled,
-that submitting it leads to sign-in or the account picker rather than straight to
-consent, that consent then names the account it will bind, that approving
+that submitting it leads to Get started ("Get started" in the app) or the account
+picker / login ("Log in") rather than straight to consent, that consent then names the account it will bind, that approving
 completes the poll in the app, and that the granted scope still carries
 `urn:zitadel:iam:org:project:id:zitadel:aud` — without it the desktop's in-app
 profile editor silently 401s.

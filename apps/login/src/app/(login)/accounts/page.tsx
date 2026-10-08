@@ -1,11 +1,10 @@
 import { DynamicTheme } from "@/components/dynamic-theme";
 import { SessionsList } from "@/components/sessions-list";
 import { Translated } from "@/components/translated";
+import { ACCOUNT_TILE_CLASSES, AccountTileChevron } from "@/components/venho/account-tile";
 import { getAllSessionCookieIds } from "@/lib/cookies";
 import { getServiceConfig } from "@/lib/service-url";
-import { isSessionValid } from "@/lib/session";
-import { getBrandingSettings, getDefaultOrg, listSessions, ServiceConfig } from "@/lib/zitadel";
-import { UserPlusIcon } from "@heroicons/react/24/outline";
+import { getBrandingSettings, getDefaultOrg, getUserByID, listSessions, ServiceConfig } from "@/lib/zitadel";
 import { Organization } from "@zitadel/proto/zitadel/org/v2/org_pb";
 import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
@@ -59,27 +58,27 @@ export default async function Page(props: { searchParams: Promise<Record<string 
 
   let sessions = await loadSessions({ serviceConfig, organization });
 
-  // VENHO FORK: compute each session's real validity here, on the server, with
-  // the same `isSessionValid` gate the flow uses (primary factor + expiry + MFA
-  // + email verification). The account tiles are a client component and cannot
-  // run that gate — it needs the session token and extra API calls — so without
-  // this they fell back to a client-only estimate that ignores MFA and email
-  // verification and painted "valid" (green) for accounts the flow then bounced.
-  // Passing the truth down makes the status dot honest and lets the picker offer
-  // an explicit "Continue as" for an account that can actually proceed.
-  const validityEntries = await Promise.all(
+  // VENHO FORK: the designs show each account's profile picture where it has
+  // one. The session carries only names, so look the user up — best-effort:
+  // a lookup that fails leaves that tile on its initials.
+  const avatarEntries = await Promise.all(
     sessions.map(async (session) => {
+      const userId = session.factors?.user?.id;
+      if (!userId) {
+        return null;
+      }
       try {
-        return [session.id, await isSessionValid({ serviceConfig, session })] as const;
+        const { user } = await getUserByID({ serviceConfig, userId });
+        const avatarUrl = user?.type.case === "human" ? user.type.value.profile?.avatarUrl : undefined;
+        return avatarUrl ? ([session.id, avatarUrl] as const) : null;
       } catch {
-        // A validity probe that errors (stale token, transient API failure) must
-        // not blank the whole picker — treat that one session as not-valid; its
-        // tile still re-authenticates on click.
-        return [session.id, false] as const;
+        return null;
       }
     }),
   );
-  const validityById: Record<string, boolean> = Object.fromEntries(validityEntries);
+  const avatarUrlById: Record<string, string> = Object.fromEntries(
+    avatarEntries.filter((entry): entry is readonly [string, string] => entry !== null),
+  );
 
   const branding = await getBrandingSettings({ serviceConfig, organization: organization ?? defaultOrganization });
 
@@ -99,7 +98,7 @@ export default async function Page(props: { searchParams: Promise<Record<string 
 
   return (
     <DynamicTheme branding={branding}>
-      <div className="flex flex-col space-y-4">
+      <div className="flex flex-col space-y-3">
         <h1>
           <Translated i18nKey="title" namespace="accounts" />
         </h1>
@@ -108,20 +107,14 @@ export default async function Page(props: { searchParams: Promise<Record<string 
         </p>
       </div>
 
-      <div className="w-full">
-        <div className="flex w-full flex-col space-y-2">
-          <SessionsList sessions={sessions} requestId={requestId} validityById={validityById} />
-          <Link href={`/loginname?` + params}>
-            <div className="flex flex-row items-center rounded-md px-4 py-3 transition-all hover:bg-black/10 dark:hover:bg-white/10">
-              <div className="mr-4 flex h-8 w-8 flex-row items-center justify-center rounded-full bg-black/5 dark:bg-white/5">
-                <UserPlusIcon className="h-5 w-5" />
-              </div>
-              <span className="text-sm">
-                <Translated i18nKey="addAnother" namespace="accounts" />
-              </span>
-            </div>
-          </Link>
-        </div>
+      <div className="flex w-full flex-col gap-2">
+        <SessionsList sessions={sessions} requestId={requestId} avatarUrlById={avatarUrlById} />
+        <Link href={`/loginname?` + params} className={`${ACCOUNT_TILE_CLASSES} h-[76px]`} data-testid="add-another-account">
+          <span className="text-text-light-500 dark:text-text-dark-500 flex-1 text-sm leading-5">
+            <Translated i18nKey="addAnother" namespace="accounts" />
+          </span>
+          <AccountTileChevron />
+        </Link>
       </div>
     </DynamicTheme>
   );

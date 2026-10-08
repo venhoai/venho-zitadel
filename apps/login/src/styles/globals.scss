@@ -7,11 +7,13 @@
   // on the default sans, which is Geist. See tailwind.config.mjs.
   h1,
   .ztdl-h1 {
-    @apply font-display text-center text-2xl;
+    @apply font-display text-center text-2xl leading-8 font-semibold;
   }
 
+  // Supporting text is the designs' muted foreground (#85888e), dimmer than
+  // the branding scale's secondary text.
   .ztdl-p {
-    @apply text-text-light-secondary-500 dark:text-text-dark-secondary-500 text-sm;
+    @apply text-venho-light-muted dark:text-venho-dark-muted text-sm;
   }
 }
 

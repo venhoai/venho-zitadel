@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TextInput } from "./input";
 
@@ -31,9 +31,10 @@ describe("TextInput Component", () => {
       expect(input?.defaultValue).toBe("John Doe");
     });
 
-    it("should show required indicator when required", () => {
-      render(<TextInput label="Required Field" required />);
-      expect(screen.getByText(/\*/)).toBeTruthy();
+    it("marks a required field as required without an asterisk (the designs draw none)", () => {
+      const { container } = render(<TextInput label="Required Field" required />);
+      expect(container.querySelector("input")?.required).toBe(true);
+      expect(screen.queryByText(/\*/)).toBeNull();
     });
   });
 
@@ -55,8 +56,10 @@ describe("TextInput Component", () => {
       const { container } = render(<TextInput label="Email" error="Invalid" />);
       const input = container.querySelector("input");
       expect(input).toBeTruthy();
-      // Should have border-warn or warn-related styles
-      expect(input?.className).toMatch(/border-warn/);
+      // The destructive border, and the message tied to the field.
+      expect(input?.className).toMatch(/border-venho-dark-destructive/);
+      expect(input?.getAttribute("aria-invalid")).toBe("true");
+      expect(input?.getAttribute("aria-describedby")).toBe(container.querySelector("[data-testid=field-error]")?.id);
     });
 
     it("should render success state with message", () => {
@@ -157,7 +160,7 @@ describe("TextInput Component", () => {
       const input = container.querySelector("input");
       expect(input).toBeTruthy();
       // Should have focus-related classes
-      expect(input?.className).toMatch(/focus:/);
+      expect(input?.className).toMatch(/focus-visible:/);
     });
   });
 
@@ -185,10 +188,22 @@ describe("TextInput Component", () => {
       expect(input).toBeTruthy();
     });
 
-    it("should show required indicator", () => {
-      const { container } = render(<TextInput label="UniqueRequiredField" required />);
-      const label = container.querySelector("label");
-      expect(label?.textContent).toContain("*");
+    it("labels the input it belongs to", () => {
+      render(<TextInput label="UniqueRequiredField" required />);
+      expect(screen.getByLabelText("UniqueRequiredField").tagName).toBe("INPUT");
+    });
+
+    it("lets a password be shown and hidden again", () => {
+      render(<TextInput label="Password" type="password" />);
+      const input = screen.getByLabelText("Password") as HTMLInputElement;
+      const toggle = screen.getByRole("button", { name: "Show password" });
+
+      fireEvent.click(toggle);
+      expect(input.type).toBe("text");
+      expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
+      expect(input.type).toBe("password");
     });
   });
 });

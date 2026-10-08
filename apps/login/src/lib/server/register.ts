@@ -61,7 +61,11 @@ export type RegisterUserResponse = {
 };
 export async function registerUser(
   command: RegisterUserCommand,
-): Promise<{ error: string } | { redirect: string } | { samlData: { url: string; fields: Record<string, string> } }> {
+): Promise<
+  | { error: string; emailExists?: boolean }
+  | { redirect: string }
+  | { samlData: { url: string; fields: Record<string, string> } }
+> {
   const t = await getTranslations("register");
   const _headers = await headers();
   const { serviceConfig } = getServiceConfig(_headers);
@@ -88,9 +92,21 @@ export async function registerUser(
     password: command.password ? command.password : undefined,
     organization: command.organization,
   }).catch((error) => {
+    // VENHO FORK: the email is the username here, so ZITADEL's AlreadyExists
+    // means an account with this address exists. The form says so at the
+    // field and offers to log in instead, rather than a bare "could not
+    // create user". (Telling a visitor an address is registered is no more
+    // than /loginname already does.)
+    if (error instanceof ConnectError && error.code === Code.AlreadyExists) {
+      return "exists" as const;
+    }
     logger.error("Failed to create user", { error });
     return null;
   });
+
+  if (addResponse === "exists") {
+    return { error: t("emailExists"), emailExists: true };
+  }
 
   if (!addResponse) {
     return { error: t("errors.couldNotCreateUser") };

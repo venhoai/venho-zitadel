@@ -138,11 +138,11 @@ export function UsernameForm({
 
         {allowRegister && (
           <div className="mt-[20px] flex w-full flex-row items-baseline justify-center gap-[4px] text-sm leading-5">
-            <span className="text-text-light-secondary-500 dark:text-text-dark-secondary-500">
+            <span className="text-venho-light-muted dark:text-venho-dark-muted">
               <Translated i18nKey="registerPrompt" namespace="loginname" />
             </span>
             <button
-              className="text-text-light-500 dark:text-text-dark-500 font-semibold hover:underline"
+              className="text-venho-light-secondary dark:text-venho-dark-secondary hover:text-text-light-500 hover:dark:text-text-dark-500 font-semibold transition-colors"
               onClick={() => {
                 const registerParams = new URLSearchParams();
                 if (organization) {
@@ -152,7 +152,9 @@ export function UsernameForm({
                   registerParams.append("requestId", requestId);
                 }
 
-                router.push("/register?" + registerParams);
+                // VENHO FORK: to the Get started page, which offers email
+                // and the external providers; /register is its email form.
+                router.push("/signup?" + registerParams);
               }}
               type="button"
               disabled={loading}

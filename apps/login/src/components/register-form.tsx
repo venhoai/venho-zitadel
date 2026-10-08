@@ -1,84 +1,135 @@
 "use client";
 
+import {
+  lowerCaseValidator,
+  maxLengthValidator,
+  numberValidator,
+  symbolValidator,
+  upperCaseValidator,
+} from "@/helpers/validators";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { registerUser } from "@/lib/server/register";
-import { LegalAndSupportSettings } from "@zitadel/proto/zitadel/settings/v2/legal_settings_pb";
 import { LoginSettings, PasskeysType } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
+import { PasswordComplexitySettings } from "@zitadel/proto/zitadel/settings/v2/password_settings_pb";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { FieldValues, useForm } from "react-hook-form";
-import { Alert, AlertType } from "./alert";
-import { AuthenticationMethod, AuthenticationMethodRadio, methods } from "./authentication-method-radio";
+import { ReactNode, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Alert } from "./alert";
 import { AutoSubmitForm } from "./auto-submit-form";
-import { BackButton } from "./back-button";
 import { Button, ButtonVariants } from "./button";
+import { Checkbox } from "./checkbox";
 import { TextInput } from "./input";
-import { PrivacyPolicyCheckboxes } from "./privacy-policy-checkboxes";
+import { PasswordComplexity } from "./password-complexity";
 import { Spinner } from "./spinner";
 import { Translated } from "./translated";
+import { VENHO_EULA_URL, VENHO_PRIVACY_URL } from "./venho/legal";
+import { LoginPrompt } from "./venho/login-prompt";
 
-type Inputs =
-  | {
-      firstname: string;
-      lastname: string;
-      email: string;
-    }
-  | FieldValues;
+type Inputs = {
+  firstname: string;
+  lastname: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
 type Props = {
-  legal: LegalAndSupportSettings;
   firstname?: string;
   lastname?: string;
   email?: string;
   organization: string;
   requestId?: string;
   loginSettings?: LoginSettings;
-  idpCount: number;
+  passwordComplexitySettings?: PasswordComplexitySettings;
+  /** "Already have an account? Log in" — the picker or the login name screen. */
+  loginHref: string;
 };
 
+/**
+ * VENHO FORK — sign-up on one page (Figma "Venho new Sidebar UI", frames
+ * 1629:33978, 1629:34106 and 1629:34111).
+ *
+ * Upstream split this in two: name and email with a Passkey/Password choice
+ * here, then the password on /register/password. The designs ask for
+ * everything at once — names, email, password and its confirmation with the
+ * live checklist, and one agreement to the EULA and Privacy Policy — and
+ * sign up with a password. A passkey account is still one link away for an
+ * instance that allows passkeys, and is the only path when it allows nothing
+ * else.
+ *
+ * An address that already has an account is reported at the email field,
+ * with a way to log in as it instead.
+ */
 export function RegisterForm({
-  legal,
   email,
   firstname,
   lastname,
   organization,
   requestId,
   loginSettings,
-  idpCount = 0,
+  passwordComplexitySettings,
+  loginHref,
 }: Props) {
-  const { register, handleSubmit, formState } = useForm<Inputs>({
+  const { register, handleSubmit, watch, trigger, formState } = useForm<Inputs>({
     mode: "onChange",
     defaultValues: {
       email: email ?? "",
       firstname: firstname ?? "",
       lastname: lastname ?? "",
+      password: "",
+      confirmPassword: "",
     },
   });
 
   const t = useTranslations("register");
-
-  const [loading, setLoading] = useState<boolean>(false);
-  const [selected, setSelected] = useState<AuthenticationMethod>(methods[0]);
-  const [error, setError] = useState<string>("");
-  const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
-
   const router = useRouter();
 
-  async function submitAndRegister(values: Inputs) {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const [existingEmail, setExistingEmail] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
+  const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
+
+  const withPassword = !!loginSettings?.allowLocalAuthentication;
+  const passkeyAllowed = loginSettings?.passkeysType === PasskeysType.ALLOWED;
+
+  const watchEmail = watch("email");
+  const watchPassword = watch("password");
+  const watchConfirmPassword = watch("confirmPassword");
+
+  const policyIsValid =
+    !withPassword ||
+    (!!passwordComplexitySettings &&
+      watchPassword.length >= passwordComplexitySettings.minLength &&
+      (!passwordComplexitySettings.requiresLowercase || lowerCaseValidator(watchPassword)) &&
+      (!passwordComplexitySettings.requiresUppercase || upperCaseValidator(watchPassword)) &&
+      (!passwordComplexitySettings.requiresNumber || numberValidator(watchPassword)) &&
+      (!passwordComplexitySettings.requiresSymbol || symbolValidator(watchPassword)) &&
+      maxLengthValidator(watchPassword) &&
+      watchPassword === watchConfirmPassword);
+
+  async function submit(values: Inputs, password: string | undefined) {
+    setError("");
+    setExistingEmail(null);
     setLoading(true);
     try {
       const response = await registerUser({
         email: values.email,
         firstName: values.firstname,
         lastName: values.lastname,
-        organization: organization,
-        requestId: requestId,
+        organization,
+        requestId,
+        password,
       });
 
-      handleServerActionResponse(response, router, setSamlData, setError);
+      if (response && "emailExists" in response && response.emailExists) {
+        setExistingEmail(values.email);
+        return;
+      }
 
-      return response;
+      handleServerActionResponse(response, router, setSamlData, setError);
     } catch {
       setError(t("errors.couldNotRegisterUser"));
     } finally {
@@ -86,151 +137,181 @@ export function RegisterForm({
     }
   }
 
-  async function submitAndContinue(value: Inputs, withPassword: boolean = false) {
-    const registerParams: any = value;
-
-    if (organization) {
-      registerParams.organization = organization;
+  /** Passkey instead: the same account, with no password, enrolling a passkey next. */
+  async function submitWithPasskey() {
+    const valid = await trigger(["firstname", "lastname", "email"]);
+    if (!valid || !agreed) {
+      return;
     }
-
-    if (requestId) {
-      registerParams.requestId = requestId;
-    }
-
-    // redirect user to /register/password if password is chosen
-    if (withPassword) {
-      return router.push(`/register/password?` + new URLSearchParams(registerParams));
-    } else {
-      return submitAndRegister(value);
-    }
+    const { firstname, lastname, email } = watch();
+    await submit({ firstname, lastname, email, password: "", confirmPassword: "" }, undefined);
   }
 
-  const { errors } = formState;
+  const loginInsteadParams = new URLSearchParams({ loginName: existingEmail ?? "", submit: "true" });
+  if (organization) {
+    loginInsteadParams.set("organization", organization);
+  }
+  if (requestId) {
+    loginInsteadParams.set("requestId", requestId);
+  }
 
-  const [tosAndPolicyAccepted, setTosAndPolicyAccepted] = useState(false);
+  // The "already exists" message belongs to the address it was about; editing
+  // the field clears it.
+  const emailError: ReactNode =
+    existingEmail && existingEmail === watchEmail ? (
+      <>
+        {t("emailExists")}{" "}
+        <Link
+          href={"/loginname?" + loginInsteadParams}
+          className="text-venho-light-secondary dark:text-venho-dark-secondary hover:text-text-light-500 hover:dark:text-text-dark-500 transition-colors"
+          data-testid="login-instead"
+        >
+          {t("loginInstead")}
+        </Link>
+      </>
+    ) : (
+      (formState.errors.email?.message as string | undefined)
+    );
 
-  // Check if legal acceptance is required
-  const isLegalAcceptanceRequired = !!(legal?.tosLink || legal?.privacyPolicyLink);
-  const canSubmit = formState.isValid && (!isLegalAcceptanceRequired || tosAndPolicyAccepted);
+  const legalLink = (href: string, testId: string, underline: boolean) =>
+    function LegalLink(chunks: ReactNode) {
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid={testId}
+          className={
+            underline
+              ? "text-venho-light-secondary dark:text-venho-dark-secondary hover:text-text-light-500 hover:dark:text-text-dark-500 underline"
+              : "text-venho-light-secondary dark:text-venho-dark-secondary hover:text-text-light-500 hover:dark:text-text-dark-500 font-medium"
+          }
+        >
+          {chunks}
+        </a>
+      );
+    };
+
+  const canSubmit = formState.isValid && policyIsValid && agreed && !loading;
 
   return (
     <>
       {samlData && <AutoSubmitForm url={samlData.url} fields={samlData.fields} />}
-      <form className="w-full">
-        <div className="mb-4 grid grid-cols-2 gap-4">
-          <div className="">
-            <TextInput
-              type="firstname"
-              autoComplete="firstname"
-              autoFocus
-              required
-              {...register("firstname", { required: t("required.firstname") })}
-              label={t("labels.firstname")}
-              error={errors.firstname?.message as string}
-              data-testid="firstname-text-input"
-            />
-          </div>
-          <div className="">
-            <TextInput
-              type="lastname"
-              autoComplete="lastname"
-              required
-              {...register("lastname", { required: t("required.lastname") })}
-              label={t("labels.lastname")}
-              error={errors.lastname?.message as string}
-              data-testid="lastname-text-input"
-            />
-          </div>
-          <div className="col-span-2">
+      <form className="flex w-full flex-col gap-8" noValidate>
+        <div className="flex w-full flex-col gap-6">
+          <div className="flex w-full flex-col gap-5">
+            <div className="grid grid-cols-2 gap-5">
+              <TextInput
+                type="text"
+                autoComplete="given-name"
+                autoFocus
+                required
+                {...register("firstname", { required: t("required.firstname") })}
+                label={t("labels.firstname")}
+                placeholder={t("placeholders.firstname")}
+                error={formState.errors.firstname?.message as string}
+                data-testid="firstname-text-input"
+              />
+              <TextInput
+                type="text"
+                autoComplete="family-name"
+                required
+                {...register("lastname", { required: t("required.lastname") })}
+                label={t("labels.lastname")}
+                placeholder={t("placeholders.lastname")}
+                error={formState.errors.lastname?.message as string}
+                data-testid="lastname-text-input"
+              />
+            </div>
             <TextInput
               type="email"
               autoComplete="email"
               required
               {...register("email", { required: t("required.email") })}
               label={t("labels.email")}
-              error={errors.email?.message as string}
+              placeholder={t("placeholders.email")}
+              error={emailError}
               data-testid="email-text-input"
             />
+
+            {withPassword && (
+              <>
+                <TextInput
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  {...register("password", { required: t("password.required.password") })}
+                  label={t("password.labels.password")}
+                  placeholder={t("placeholders.password")}
+                  data-testid="password-text-input"
+                />
+                <TextInput
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  {...register("confirmPassword", { required: t("password.required.confirmPassword") })}
+                  label={t("password.labels.confirmPassword")}
+                  placeholder={t("placeholders.password")}
+                  data-testid="password-confirm-text-input"
+                />
+                {passwordComplexitySettings && (
+                  <PasswordComplexity
+                    passwordComplexitySettings={passwordComplexitySettings}
+                    password={watchPassword}
+                    equals={!!watchPassword && watchPassword === watchConfirmPassword}
+                  />
+                )}
+              </>
+            )}
           </div>
-        </div>
-        {(legal?.tosLink || legal?.privacyPolicyLink) && (
-          <PrivacyPolicyCheckboxes legal={legal} onChange={setTosAndPolicyAccepted} />
-        )}
-        {/* show chooser if both methods are allowed */}
-        {loginSettings && loginSettings.allowLocalAuthentication && loginSettings.passkeysType == PasskeysType.ALLOWED && (
-          <>
-            <p className="ztdl-p mt-4 mb-6 block text-left">
-              <Translated i18nKey="selectMethod" namespace="register" />
+
+          <label className="flex cursor-pointer flex-row items-start gap-2 text-sm leading-none">
+            <Checkbox checked={agreed} onChangeVal={setAgreed} data-testid="agreement-checkbox" />
+            <span className="text-venho-light-muted dark:text-venho-dark-muted">
+              {t.rich("agreement", {
+                eula: legalLink(VENHO_EULA_URL, "eula-link", true),
+                privacy: legalLink(VENHO_PRIVACY_URL, "privacy-link", true),
+              })}
+            </span>
+          </label>
+
+          {error && <Alert>{error}</Alert>}
+
+          <div className="flex w-full flex-col items-center gap-4">
+            <Button
+              className="h-[40px] w-full justify-center font-medium"
+              type="submit"
+              variant={ButtonVariants.Primary}
+              disabled={!canSubmit}
+              onClick={handleSubmit((values) => submit(values, withPassword ? values.password : undefined))}
+              data-testid="submit-button"
+            >
+              {loading && <Spinner className="mr-2 h-5 w-5" />}
+              <Translated i18nKey="submit" namespace="register" />
+            </Button>
+
+            {withPassword && passkeyAllowed && (
+              <button
+                type="button"
+                onClick={submitWithPasskey}
+                disabled={loading || !agreed}
+                className="text-venho-light-secondary dark:text-venho-dark-secondary hover:text-text-light-500 hover:dark:text-text-dark-500 text-sm leading-5 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                data-testid="passkey-instead"
+              >
+                {t("passkeyInstead")}
+              </button>
+            )}
+
+            <p className="text-venho-light-muted dark:text-venho-dark-muted text-center text-xs leading-4 font-medium">
+              {t.rich("legalNote", {
+                eula: legalLink(VENHO_EULA_URL, "legal-note-eula", false),
+                privacy: legalLink(VENHO_PRIVACY_URL, "legal-note-privacy", false),
+              })}
             </p>
-
-            <div className="pb-4">
-              <AuthenticationMethodRadio selected={selected} selectionChanged={setSelected} />
-            </div>
-          </>
-        )}
-        {!loginSettings?.allowLocalAuthentication &&
-          loginSettings?.passkeysType !== PasskeysType.ALLOWED &&
-          (!loginSettings?.allowExternalIdp || !idpCount) && (
-            <div className="py-4">
-              <Alert type={AlertType.INFO}>
-                <Translated i18nKey="noMethodAvailableWarning" namespace="register" />
-              </Alert>
-            </div>
-          )}
-
-        {error && (
-          <div className="py-4">
-            <Alert>{error}</Alert>
           </div>
-        )}
-
-        <div className="mt-8 flex w-full flex-col gap-[16px]">
-          <Button className="h-[40px] w-full justify-center"
-            type="submit"
-            variant={ButtonVariants.Primary}
-            disabled={loading || !canSubmit}
-            onClick={handleSubmit((values) => {
-              const usePasswordToContinue: boolean =
-                loginSettings?.allowLocalAuthentication && loginSettings?.passkeysType == PasskeysType.ALLOWED
-                  ? !(selected === methods[0]) // choose selection if both available
-                  : !!loginSettings?.allowLocalAuthentication; // if password is chosen
-              // set password as default if only password is allowed
-              return submitAndContinue(values, usePasswordToContinue);
-            })}
-            data-testid="submit-button"
-          >
-            {loading && <Spinner className="mr-2 h-5 w-5" />}
-            <Translated i18nKey="submit" namespace="register" />
-          </Button>
-          <BackButton data-testid="back-button" />
         </div>
 
-        {/* VENHO FORK: the way back to sign-in, phrased as the designs have it.
-            Mirrors the "Don't have an account? Sign up" row on the sign-in
-            screen, so the two halves of the loop look like each other. */}
-        <div className="mt-[20px] flex w-full flex-row items-baseline justify-center gap-[4px] text-sm leading-5">
-          <span className="text-text-light-secondary-500 dark:text-text-dark-secondary-500">
-            <Translated i18nKey="loginPrompt" namespace="register" />
-          </span>
-          <button
-            className="text-text-light-500 dark:text-text-dark-500 font-semibold hover:underline"
-            onClick={() => {
-              const params = new URLSearchParams();
-              if (organization) {
-                params.append("organization", organization);
-              }
-              if (requestId) {
-                params.append("requestId", requestId);
-              }
-              router.push("/loginname?" + params);
-            }}
-            type="button"
-            disabled={loading}
-            data-testid="login-button"
-          >
-            <Translated i18nKey="login" namespace="register" />
-          </button>
-        </div>
+        <LoginPrompt href={loginHref} />
       </form>
     </>
   );

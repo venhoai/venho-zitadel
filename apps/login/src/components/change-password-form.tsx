@@ -1,6 +1,12 @@
 "use client";
 
-import { lowerCaseValidator, numberValidator, symbolValidator, upperCaseValidator } from "@/helpers/validators";
+import {
+  lowerCaseValidator,
+  maxLengthValidator,
+  numberValidator,
+  symbolValidator,
+  upperCaseValidator,
+} from "@/helpers/validators";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { checkSessionAndSetPassword, sendPassword } from "@/lib/server/password";
 import { create } from "@zitadel/client";
@@ -118,7 +124,9 @@ export function ChangePasswordForm({ passwordComplexitySettings, sessionId, logi
     (passwordComplexitySettings.requiresNumber ? hasNumber : true) &&
     (passwordComplexitySettings.requiresUppercase ? hasUppercase : true) &&
     (passwordComplexitySettings.requiresSymbol ? hasSymbol : true) &&
-    hasMinLength;
+    hasMinLength &&
+    // VENHO FORK: the instance's bcrypt cannot store more (see the validator).
+    maxLengthValidator(watchPassword);
 
   return (
     <>
@@ -188,7 +196,8 @@ export function ChangePasswordForm({ passwordComplexitySettings, sessionId, logi
         {error && <Alert>{error}</Alert>}
 
         <div className="mt-8 flex w-full flex-col gap-[16px]">
-          <Button className="h-[40px] w-full justify-center"
+          <Button
+            className="h-[40px] w-full justify-center"
             type="submit"
             variant={ButtonVariants.Primary}
             disabled={loading || !policyIsValid || !formState.isValid || watchPassword !== watchConfirmPassword}
