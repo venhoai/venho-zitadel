@@ -9,11 +9,11 @@ import {
 } from "@/helpers/validators";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { checkSessionAndSetPassword, sendPassword } from "@/lib/server/password";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { create } from "@zitadel/client";
 import { ChecksSchema } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
 import { PasswordComplexitySettings } from "@zitadel/proto/zitadel/settings/v2/password_settings_pb";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import { Alert } from "./alert";
@@ -42,7 +42,7 @@ type Props = {
 };
 
 export function ChangePasswordForm({ passwordComplexitySettings, sessionId, loginName, requestId, organization }: Props) {
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
 
   const { register, handleSubmit, watch, formState } = useForm<Inputs>({
     mode: "onChange",
@@ -55,12 +55,13 @@ export function ChangePasswordForm({ passwordComplexitySettings, sessionId, logi
 
   const t = useTranslations("password");
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const loading = submitting || navigating;
   const [error, setError] = useState<string>("");
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
   async function submitChange(values: Inputs) {
-    setLoading(true);
+    setSubmitting(true);
 
     const changeResponse = await checkSessionAndSetPassword({
       sessionId,
@@ -68,19 +69,19 @@ export function ChangePasswordForm({ passwordComplexitySettings, sessionId, logi
       password: values.password,
     }).catch(() => {
       setError(t("change.errors.couldNotChangePassword"));
-      setLoading(false);
+      setSubmitting(false);
       return;
     });
 
     if (changeResponse && "error" in changeResponse && changeResponse.error) {
       setError(typeof changeResponse.error === "string" ? changeResponse.error : t("change.errors.unknownError"));
-      setLoading(false);
+      setSubmitting(false);
       return;
     }
 
     if (!changeResponse) {
       setError(t("change.errors.couldNotChangePassword"));
-      setLoading(false);
+      setSubmitting(false);
       return;
     }
 
@@ -99,7 +100,7 @@ export function ChangePasswordForm({ passwordComplexitySettings, sessionId, logi
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     handleServerActionResponse(passwordResponse as any, router, setSamlData, setError);

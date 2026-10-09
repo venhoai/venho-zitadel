@@ -1,8 +1,8 @@
 "use client";
 
 import { createNewSessionForLDAP } from "@/lib/server/idp";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "./alert";
@@ -44,13 +44,14 @@ export function LDAPUsernamePasswordForm({
 
   const [error, setError] = useState<string>("");
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   async function submitUsernamePassword(values: Inputs) {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     const response = await createNewSessionForLDAP({
       idpId: idpId,
@@ -68,7 +69,7 @@ export function LDAPUsernamePasswordForm({
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (response && "error" in response && response.error) {
@@ -112,7 +113,7 @@ export function LDAPUsernamePasswordForm({
       )}
 
       <div className="mt-8 flex w-full flex-col gap-[16px]">
-          <Button
+        <Button
           type="submit"
           className="h-[40px] w-full justify-center"
           variant={ButtonVariants.Primary}
@@ -123,8 +124,8 @@ export function LDAPUsernamePasswordForm({
           {loading && <Spinner className="mr-2 h-5 w-5" />}
           <Translated i18nKey="submit" namespace="ldap" />
         </Button>
-          <BackButton data-testid="back-button" />
-        </div>
+        <BackButton data-testid="back-button" />
+      </div>
     </form>
   );
 }

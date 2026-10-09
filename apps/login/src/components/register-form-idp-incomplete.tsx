@@ -2,8 +2,8 @@
 
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { registerUserAndLinkToIDP } from "@/lib/server/register";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import { Alert } from "./alert";
@@ -59,14 +59,15 @@ export function RegisterFormIDPIncomplete({
   });
 
   const t = useTranslations("register");
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const loading = submitting || navigating;
   const [error, setError] = useState<string>("");
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
   async function submitAndRegister(values: Inputs) {
-    setLoading(true);
+    setSubmitting(true);
     try {
       const response = await registerUserAndLinkToIDP({
         idpId: idpId,
@@ -84,7 +85,7 @@ export function RegisterFormIDPIncomplete({
     } catch {
       setError("Could not register user");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
@@ -154,7 +155,8 @@ export function RegisterFormIDPIncomplete({
         )}
 
         <div className="mt-8 flex w-full flex-col gap-[16px]">
-          <Button className="h-[40px] w-full justify-center"
+          <Button
+            className="h-[40px] w-full justify-center"
             type="submit"
             variant={ButtonVariants.Primary}
             disabled={loading || !formState.isValid}

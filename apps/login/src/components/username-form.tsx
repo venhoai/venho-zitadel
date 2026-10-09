@@ -2,9 +2,9 @@
 
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { sendLoginname } from "@/lib/server/loginname";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { LoginSettings } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "./alert";
@@ -51,15 +51,16 @@ export function UsernameForm({
 
   const t = useTranslations("loginname");
 
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const loading = submitting || navigating;
   const [error, setError] = useState<string>("");
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
   const submitLoginName = useCallback(
     async (values: Inputs, organization?: string) => {
-      setLoading(true);
+      setSubmitting(true);
 
       try {
         const res = await sendLoginname({
@@ -75,7 +76,7 @@ export function UsernameForm({
       } catch {
         setError(t("errors.internalError"));
       } finally {
-        setLoading(false);
+        setSubmitting(false);
       }
     },
     [defaultOrganization, requestId, suffix, router, t],

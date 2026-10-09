@@ -2,10 +2,10 @@
 
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { continueWithSession, ContinueWithSessionCommand } from "@/lib/server/session";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { Timestamp, timestampDate } from "@zitadel/client";
 import { Session } from "@zitadel/proto/zitadel/session/v2/session_pb";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert } from "./alert";
 import { AutoSubmitForm } from "./auto-submit-form";
 import { getInitials } from "./avatar";
@@ -42,14 +42,22 @@ export function SessionItem({
   session,
   requestId,
   avatarUrl,
+  disabled = false,
+  onBusyChange,
 }: {
   session: Session;
   requestId?: string;
   /** The user's profile picture, when the server could look it up. */
   avatarUrl?: string;
+  /** Another tile is already on its way; one account per click. */
+  disabled?: boolean;
+  /** Told when this tile starts and stops moving the flow forward. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const { router, navigating } = useLeavingRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const loading = submitting || navigating;
+  useEffect(() => onBusyChange?.(loading), [loading, onBusyChange]);
   const [error, setError] = useState<string | null>(null);
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
@@ -62,7 +70,7 @@ export function SessionItem({
       return;
     }
     setError(null);
-    setLoading(true);
+    setSubmitting(true);
     try {
       const payload: ContinueWithSessionCommand = session;
       if (requestId) {
@@ -73,7 +81,7 @@ export function SessionItem({
     } catch {
       setError("An internal error occurred");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
@@ -83,7 +91,7 @@ export function SessionItem({
       <button
         type="button"
         onClick={continueAs}
-        disabled={loading}
+        disabled={loading || disabled}
         data-testid="account-tile"
         className={ACCOUNT_TILE_CLASSES}
       >

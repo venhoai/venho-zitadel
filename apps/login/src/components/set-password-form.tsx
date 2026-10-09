@@ -9,11 +9,11 @@ import {
 } from "@/helpers/validators";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { changePassword, resetPassword, sendPassword } from "@/lib/server/password";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { create } from "@zitadel/client";
 import { ChecksSchema } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
 import { PasswordComplexitySettings } from "@zitadel/proto/zitadel/settings/v2/password_settings_pb";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import { Alert, AlertType } from "./alert";
@@ -63,15 +63,16 @@ export function SetPasswordForm({
 
   const t = useTranslations("password");
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   async function resendCode() {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     const response = await resetPassword({
       loginName,
@@ -84,7 +85,7 @@ export function SetPasswordForm({
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (response && "error" in response && typeof response.error === "string") {
@@ -94,7 +95,7 @@ export function SetPasswordForm({
   }
 
   async function submitPassword(values: Inputs) {
-    setLoading(true);
+    setSubmitting(true);
 
     let payload: { userId: string; password: string; code?: string; organization?: string } = {
       userId: userId,
@@ -109,18 +110,18 @@ export function SetPasswordForm({
 
     const changeResponse = await changePassword(payload).catch(() => {
       setError(t("set.errors.couldNotSetPassword"));
-      setLoading(false);
+      setSubmitting(false);
       return;
     });
 
     if (changeResponse && "error" in changeResponse) {
-      setLoading(false);
+      setSubmitting(false);
       setError(changeResponse.error);
       return;
     }
 
     if (!changeResponse) {
-      setLoading(false);
+      setSubmitting(false);
       setError(t("set.errors.couldNotSetPassword"));
       return;
     }
@@ -145,11 +146,11 @@ export function SetPasswordForm({
       requestId,
     }).catch(() => {
       setError(t("set.errors.couldNotVerifyPassword"));
-      setLoading(false);
+      setSubmitting(false);
       return;
     });
 
-    setLoading(false);
+    setSubmitting(false);
     handleServerActionResponse(passwordResponse as any, router, setSamlData, setError);
 
     return;

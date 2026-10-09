@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { create } from "@zitadel/client";
 import { LoginSettingsSchema, PasskeysType } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { PasswordComplexitySettingsSchema } from "@zitadel/proto/zitadel/settings/v2/password_settings_pb";
 import { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { slowNavigation } from "../../test-mocks/slow-navigation";
 import { RegisterForm } from "./register-form";
 
 const push = vi.fn();
@@ -48,7 +49,7 @@ const passwordAndPasskey = create(LoginSettingsSchema, {
   passkeysType: PasskeysType.ALLOWED,
 });
 
-function renderForm(loginSettings = passwordAndPasskey) {
+function renderForm(loginSettings = passwordAndPasskey, wrapper?: (props: { children: ReactNode }) => ReactNode) {
   return render(
     <RegisterForm
       organization="org-1"
@@ -57,6 +58,7 @@ function renderForm(loginSettings = passwordAndPasskey) {
       passwordComplexitySettings={complexity}
       loginHref="/loginname?requestId=device_abc"
     />,
+    { wrapper },
   );
 }
 
@@ -73,7 +75,10 @@ function fillValid() {
 }
 
 describe("RegisterForm — sign-up on one page", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    push.mockReset();
+  });
   afterEach(cleanup);
 
   test("autofocuses the first name", () => {
@@ -140,6 +145,31 @@ describe("RegisterForm — sign-up on one page", () => {
       }),
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith("/verify?x=1"));
+  });
+
+  test("stays busy until the next page is on screen, so the account cannot be created twice", async () => {
+    const { registerUser } = await import("@/lib/server/register");
+    vi.mocked(registerUser).mockResolvedValue({ redirect: "/verify?x=1" });
+    const nav = slowNavigation();
+    push.mockImplementation(nav.go);
+    renderForm(passwordAndPasskey, nav.Shell);
+    fillValid();
+    fireEvent.click(screen.getByTestId("agreement-checkbox"));
+    await waitFor(() => expect(screen.getByTestId("submit-button")).toBeEnabled());
+
+    fireEvent.click(screen.getByTestId("submit-button"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/verify?x=1"));
+
+    // The action has answered and the push has gone out, but /verify is still
+    // rendering: the button keeps its spinner and takes no second click.
+    const submit = screen.getByTestId("submit-button");
+    expect(submit).toBeDisabled();
+    expect(submit.querySelector("svg")).not.toBeNull();
+    expect(screen.getByTestId("passkey-instead")).toBeDisabled();
+    fireEvent.click(submit);
+    expect(registerUser).toHaveBeenCalledTimes(1);
+
+    await act(async () => nav.arrive());
   });
 
   test("an address that already has an account is said at the field, with a way to log in as it", async () => {

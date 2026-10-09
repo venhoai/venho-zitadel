@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { Session } from "@zitadel/proto/zitadel/session/v2/session_pb";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { slowNavigation } from "../../test-mocks/slow-navigation";
 import { SessionsList } from "./sessions-list";
 
 const push = vi.fn();
@@ -33,7 +34,10 @@ const john = session("s1", "john_doe", "John Doe", 100);
 const olivia = session("s2", "oliviarodriguez", "", 200);
 
 describe("SessionsList — the account picker, as designed", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    push.mockReset();
+  });
   afterEach(cleanup);
 
   test("one tile per account, most recently used first, with name over login name", () => {
@@ -74,5 +78,29 @@ describe("SessionsList — the account picker, as designed", () => {
       expect(continueWithSession).toHaveBeenCalledWith(expect.objectContaining({ id: "s1", requestId: "device_abc" })),
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith("/device/consent?requestId=device_abc"));
+  });
+
+  test("once one account is on its way, no tile takes a click until the next page is on screen", async () => {
+    const { continueWithSession } = await import("@/lib/server/session");
+    vi.mocked(continueWithSession).mockResolvedValue({ redirect: "/device/consent?requestId=device_abc" });
+    const nav = slowNavigation();
+    push.mockImplementation(nav.go);
+
+    const { getAllByTestId } = render(<SessionsList sessions={[john, olivia]} requestId="device_abc" />, {
+      wrapper: nav.Shell,
+    });
+    const [oliviaTile, johnTile] = getAllByTestId("account-tile");
+    fireEvent.click(johnTile);
+    await waitFor(() => expect(push).toHaveBeenCalled());
+
+    // John's tile spins; Olivia's waits. A second account would be a second
+    // sign-in into the same auth request.
+    expect(johnTile).toBeDisabled();
+    expect(oliviaTile).toBeDisabled();
+    fireEvent.click(oliviaTile);
+    fireEvent.click(johnTile);
+    expect(continueWithSession).toHaveBeenCalledTimes(1);
+
+    await act(async () => nav.arrive());
   });
 });

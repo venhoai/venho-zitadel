@@ -15,7 +15,7 @@ export function SessionClearItem({ session, reload }: { session: Session; reload
   const currentLocale = useLocale();
   moment.locale(currentLocale === "zh" ? "zh-cn" : currentLocale);
 
-  const [_loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   async function clearSessionId(id: string) {
     setLoading(true);
@@ -47,6 +47,7 @@ export function SessionClearItem({ session, reload }: { session: Session; reload
           reload();
         });
       }}
+      disabled={loading}
       className="group border-divider-light bg-background-light-400 dark:bg-background-dark-400 flex flex-row items-center rounded-md border px-4 py-2 transition-all hover:shadow-lg dark:hover:bg-white/10"
     >
       <div className="pr-4">

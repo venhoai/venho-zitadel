@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { slowNavigation } from "../../test-mocks/slow-navigation";
 import { DeviceCodeForm } from "./device-code-form";
 
 const push = vi.fn();
@@ -17,7 +18,10 @@ vi.mock("@/lib/server/device", () => ({
 }));
 
 describe("DeviceCodeForm", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    push.mockReset();
+  });
   afterEach(cleanup);
 
   test("should autofocus the code input on mount", () => {
@@ -41,6 +45,24 @@ describe("DeviceCodeForm", () => {
     // The device's intent rides along: the server picks the first page by it.
     await waitFor(() => expect(startDeviceAuthorization).toHaveBeenCalledWith("ABCD-1234", "login"));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/accounts?requestId=device_abc"));
+  });
+
+  test("Continue stays busy until sign-in is on screen, so the code is not spent twice", async () => {
+    const { startDeviceAuthorization } = await import("@/lib/server/device");
+    vi.mocked(startDeviceAuthorization).mockResolvedValue({ redirect: "/accounts?requestId=device_abc" });
+    const nav = slowNavigation();
+    push.mockImplementation(nav.go);
+
+    const { getByTestId } = render(<DeviceCodeForm userCode="ABCD-1234" intent="login" />, { wrapper: nav.Shell });
+    await waitFor(() => expect(getByTestId("submit-button")).not.toBeDisabled());
+    fireEvent.click(getByTestId("submit-button"));
+    await waitFor(() => expect(push).toHaveBeenCalled());
+
+    expect(getByTestId("submit-button")).toBeDisabled();
+    fireEvent.click(getByTestId("submit-button"));
+    expect(startDeviceAuthorization).toHaveBeenCalledTimes(1);
+
+    await act(async () => nav.arrive());
   });
 
   test("an unknown code is reported here, before any sign-in is asked for", async () => {

@@ -3,10 +3,10 @@
 import { completeFlowOrGetUrl } from "@/lib/client";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { verifyTOTP } from "@/lib/server/verify";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { LoginSettings } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -34,9 +34,10 @@ type Props = {
 };
 export function TotpRegister({ uri, loginName, sessionId, requestId, organization, checkAfter, loginSettings }: Props) {
   const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   const { register, handleSubmit, formState } = useForm<Inputs>({
     mode: "onChange",
@@ -48,7 +49,7 @@ export function TotpRegister({ uri, loginName, sessionId, requestId, organizatio
   const t = useTranslations("otp");
 
   async function continueWithCode(values: Inputs) {
-    setLoading(true);
+    setSubmitting(true);
     return verifyTOTP(values.code, loginName, organization)
       .then(async () => {
         // if attribute is set, validate MFA after it is setup, otherwise proceed as usual (when mfa is enforced to login)
@@ -96,7 +97,7 @@ export function TotpRegister({ uri, loginName, sessionId, requestId, organizatio
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
   }
 

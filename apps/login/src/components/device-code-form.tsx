@@ -3,8 +3,8 @@
 import { Alert } from "@/components/alert";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { startDeviceAuthorization } from "@/lib/server/device";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { BackButton } from "./back-button";
@@ -18,7 +18,7 @@ type Inputs = {
 };
 
 export function DeviceCodeForm({ userCode, intent }: { userCode?: string; intent?: string }) {
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
 
   const { register, handleSubmit, formState } = useForm<Inputs>({
     mode: "onChange",
@@ -31,7 +31,8 @@ export function DeviceCodeForm({ userCode, intent }: { userCode?: string; intent
 
   const [error, setError] = useState<string>("");
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const loading = submitting || navigating;
 
   // VENHO FORK: submitting the code no longer goes to consent. It pairs the
   // request with this browser (an httpOnly cookie — see lib/device.ts) and
@@ -41,7 +42,7 @@ export function DeviceCodeForm({ userCode, intent }: { userCode?: string; intent
   // lib/server/device.ts) and whether the browser already holds sessions.
   async function submitCodeAndContinue(value: Inputs): Promise<boolean | void> {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     const response = await startDeviceAuthorization(value.userCode, intent)
       .catch(() => {
@@ -49,7 +50,7 @@ export function DeviceCodeForm({ userCode, intent }: { userCode?: string; intent
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (!response) {

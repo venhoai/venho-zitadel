@@ -4,8 +4,9 @@ import { Alert, AlertType } from "@/components/alert";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { UNKNOWN_USER_ID } from "@/lib/constants";
 import { resendVerification, sendVerification } from "@/lib/server/verify";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { useTranslations } from "next-intl";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { AutoSubmitForm } from "./auto-submit-form";
@@ -30,7 +31,7 @@ type Props = {
 };
 
 export function VerifyForm({ userId, loginName, organization, requestId, code, isInvite, submit }: Props) {
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const codeSent = searchParams.get("codeSent") === "true";
@@ -52,16 +53,17 @@ export function VerifyForm({ userId, loginName, organization, requestId, code, i
   const [error, setError] = useState<string>("");
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const loading = submitting || navigating;
 
   async function resendCode() {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     // do not send code for dummy userid that is set to prevent user enumeration
     if (userId === UNKNOWN_USER_ID) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      setLoading(false);
+      setSubmitting(false);
       return;
     }
 
@@ -75,7 +77,7 @@ export function VerifyForm({ userId, loginName, organization, requestId, code, i
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (response && "error" in response && response?.error) {
@@ -98,7 +100,7 @@ export function VerifyForm({ userId, loginName, organization, requestId, code, i
   const fcn = useCallback(
     async function submitCodeAndContinue(value: Inputs): Promise<boolean | void> {
       setError("");
-      setLoading(true);
+      setSubmitting(true);
 
       try {
         const response = await sendVerification({
@@ -114,7 +116,7 @@ export function VerifyForm({ userId, loginName, organization, requestId, code, i
       } catch {
         setError(t("errors.couldNotVerifyUser"));
       } finally {
-        setLoading(false);
+        setSubmitting(false);
       }
     },
     [isInvite, userId, loginName, organization, requestId, router, t],

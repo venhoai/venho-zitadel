@@ -9,11 +9,11 @@ import {
 } from "@/helpers/validators";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { registerUser } from "@/lib/server/register";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { LoginSettings, PasskeysType } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { PasswordComplexitySettings } from "@zitadel/proto/zitadel/settings/v2/password_settings_pb";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ReactNode, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "./alert";
@@ -84,9 +84,10 @@ export function RegisterForm({
   });
 
   const t = useTranslations("register");
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const loading = submitting || navigating;
   const [error, setError] = useState<string>("");
   const [existingEmail, setExistingEmail] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
@@ -113,7 +114,7 @@ export function RegisterForm({
   async function submit(values: Inputs, password: string | undefined) {
     setError("");
     setExistingEmail(null);
-    setLoading(true);
+    setSubmitting(true);
     try {
       const response = await registerUser({
         email: values.email,
@@ -133,7 +134,7 @@ export function RegisterForm({
     } catch {
       setError(t("errors.couldNotRegisterUser"));
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 

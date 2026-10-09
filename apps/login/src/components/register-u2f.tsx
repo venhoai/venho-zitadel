@@ -4,9 +4,9 @@ import { coerceToArrayBuffer, coerceToBase64Url } from "@/helpers/base64";
 import { completeFlowOrGetUrl } from "@/lib/client";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { addU2F, verifyU2F } from "@/lib/server/u2f";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { LoginSettings } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { RegisterU2FResponse } from "@zitadel/proto/zitadel/user/v2/user_service_pb";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert } from "./alert";
 import { AutoSubmitForm } from "./auto-submit-form";
@@ -28,13 +28,14 @@ export function RegisterU2f({ loginName, sessionId, organization, requestId, che
   const [error, setError] = useState<string>("");
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   async function submitVerify(u2fId: string, passkeyName: string, publicKeyCredential: any, sessionId: string) {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
     const response = await verifyU2F({
       u2fId,
       passkeyName,
@@ -46,7 +47,7 @@ export function RegisterU2f({ loginName, sessionId, organization, requestId, che
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (response && "error" in response && response?.error) {
@@ -59,7 +60,7 @@ export function RegisterU2f({ loginName, sessionId, organization, requestId, che
 
   async function submitRegisterAndContinue(): Promise<boolean | void | null> {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
     const response = await addU2F({
       sessionId,
     })
@@ -68,7 +69,7 @@ export function RegisterU2f({ loginName, sessionId, organization, requestId, che
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (response && "error" in response && response?.error) {

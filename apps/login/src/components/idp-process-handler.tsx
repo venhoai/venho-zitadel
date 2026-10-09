@@ -1,8 +1,8 @@
 "use client";
 
 import { processIDPCallback } from "@/lib/server/idp-intent";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "./alert";
 import { AutoSubmitForm } from "./auto-submit-form";
@@ -36,11 +36,12 @@ export function IdpProcessHandler({
   postErrorRedirectUrl,
 }: Props) {
   const t = useTranslations("idp");
-  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
   const executedRef = useRef(false);
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   useEffect(() => {
     // Prevent double execution in React Strict Mode
@@ -66,7 +67,7 @@ export function IdpProcessHandler({
         if (result.error) {
           console.error("[IDP Process Handler] Error:", result.error);
           setError(result.error);
-          setLoading(false);
+          setSubmitting(false);
           return;
         }
 
@@ -78,18 +79,19 @@ export function IdpProcessHandler({
 
         if (result.samlData) {
           console.log("[IDP Process Handler] Received samlData, rendering AutoSubmitForm");
+          router.hold();
           setSamlData(result.samlData);
-          setLoading(false);
+          setSubmitting(false);
           return;
         }
 
         setError(t("processing.noRedirect"));
-        setLoading(false);
+        setSubmitting(false);
       })
       .catch((err) => {
         console.error("[IDP Process Handler] Unexpected error:", err);
         setError(err instanceof Error ? err.message : t("processing.unexpectedError"));
-        setLoading(false);
+        setSubmitting(false);
       });
   }, [provider, id, token, requestId, organization, link, sessionId, linkFingerprint, postErrorRedirectUrl, router, t]);
 

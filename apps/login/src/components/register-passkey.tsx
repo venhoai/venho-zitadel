@@ -2,7 +2,7 @@
 
 import { coerceToArrayBuffer, coerceToBase64Url } from "@/helpers/base64";
 import { registerPasskeyLink, verifyPasskeyRegistration } from "@/lib/server/passkeys";
-import { useRouter } from "next/navigation";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "./alert";
@@ -40,9 +40,10 @@ export function RegisterPasskey({
 
   const [error, setError] = useState<string>("");
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   const continueAndLogin = useCallback(
     (loginName?: string) => {
@@ -80,7 +81,7 @@ export function RegisterPasskey({
     currentSessionId?: string,
     currentUserId?: string,
   ) {
-    setLoading(true);
+    setSubmitting(true);
     const response = await verifyPasskeyRegistration({
       passkeyId,
       passkeyName,
@@ -93,7 +94,7 @@ export function RegisterPasskey({
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     return response;
@@ -106,7 +107,7 @@ export function RegisterPasskey({
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
 
     let regReq;
 
@@ -116,7 +117,7 @@ export function RegisterPasskey({
       regReq = { userId, code, codeId };
     } else {
       setError("Missing code for user-based registration");
-      setLoading(false);
+      setSubmitting(false);
       return;
     }
 
@@ -126,7 +127,7 @@ export function RegisterPasskey({
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (!resp) {

@@ -2,7 +2,7 @@
 
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { approveDeviceAuthorization, denyDeviceAuthorization } from "@/lib/server/device";
-import { useRouter } from "next/navigation";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { useState } from "react";
 import { Alert } from "./alert";
 import { Button, ButtonVariants } from "./button";
@@ -41,13 +41,14 @@ export function ConsentScreen({
    */
   continueAs?: string;
 }) {
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   async function run(action: () => Promise<{ redirect: string } | { error: string }>) {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     const response = await action()
       .catch(() => {
@@ -55,7 +56,7 @@ export function ConsentScreen({
         return undefined;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (response) {

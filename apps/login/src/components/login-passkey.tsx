@@ -4,11 +4,11 @@ import { coerceToArrayBuffer, coerceToBase64Url } from "@/helpers/base64";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { sendPasskey } from "@/lib/server/passkeys";
 import { updateOrCreateSession } from "@/lib/server/session";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { create, JsonObject } from "@zitadel/client";
 import { RequestChallengesSchema, UserVerificationRequirement } from "@zitadel/proto/zitadel/session/v2/challenge_pb";
 import { Checks } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "./alert";
 import { AutoSubmitForm } from "./auto-submit-form";
@@ -29,25 +29,26 @@ type Props = {
 
 export function LoginPasskey({ loginName, sessionId, requestId, altPassword, organization, login = true }: Props) {
   const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
   const t = useTranslations("passkey");
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   const initialized = useRef(false);
 
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
-      setLoading(true);
+      setSubmitting(true);
       updateOrCreateSessionForChallenge()
         .then((response) => {
           const pK = response?.challenges?.webAuthN?.publicKeyCredentialRequestOptions?.publicKey;
 
           if (!pK) {
             setError(t("verify.errors.couldNotRequestChallenge"));
-            setLoading(false);
+            setSubmitting(false);
             return;
           }
 
@@ -57,7 +58,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
               return;
             })
             .finally(() => {
-              setLoading(false);
+              setSubmitting(false);
             });
         })
         .catch((error) => {
@@ -65,7 +66,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
           return;
         })
         .finally(() => {
-          setLoading(false);
+          setSubmitting(false);
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,7 +78,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
       : UserVerificationRequirement.DISCOURAGED,
   ) {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
     const sessionResponse = await updateOrCreateSession({
       loginName,
       sessionId,
@@ -96,7 +97,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (sessionResponse && "error" in sessionResponse && sessionResponse.error) {
@@ -108,7 +109,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
   }
 
   async function submitLogin(data: JsonObject) {
-    setLoading(true);
+    setSubmitting(true);
     try {
       const response = await sendPasskey({
         loginName,
@@ -132,7 +133,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
     } catch {
       setError(t("verify.errors.couldNotVerifyPasskey"));
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
@@ -181,7 +182,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
         console.error("Passkey verification error:", error);
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
   }
 
@@ -201,7 +202,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
           disabled={loading}
           onClick={async () => {
             const response = await updateOrCreateSessionForChallenge().finally(() => {
-              setLoading(false);
+              setSubmitting(false);
             });
 
             const pK = response?.challenges?.webAuthN?.publicKeyCredentialRequestOptions?.publicKey;
@@ -211,7 +212,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
               return;
             }
 
-            setLoading(true);
+            setSubmitting(true);
 
             return submitLoginAndContinue(pK)
               .catch((error) => {
@@ -219,7 +220,7 @@ export function LoginPasskey({ loginName, sessionId, requestId, altPassword, org
                 return;
               })
               .finally(() => {
-                setLoading(false);
+                setSubmitting(false);
               });
           }}
           data-testid="submit-button"

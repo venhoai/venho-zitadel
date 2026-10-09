@@ -2,9 +2,9 @@
 
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { skipMFAAndContinueWithNextUrl } from "@/lib/server/session";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { LoginSettings, SecondFactorType } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { AuthenticationMethodType } from "@zitadel/proto/zitadel/user/v2/user_service_pb";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert } from "./alert";
 import { EMAIL, SMS, TOTP, U2F } from "./auth-methods";
@@ -38,7 +38,9 @@ export function ChooseSecondFactorToSetup({
   emailVerified,
   force,
 }: Props) {
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const [skipping, setSkipping] = useState(false);
+  const busy = skipping || navigating;
   const params = new URLSearchParams({});
 
   const [error, setError] = useState<string>("");
@@ -83,18 +85,24 @@ export function ChooseSecondFactorToSetup({
       </div>
       {!force && (
         <button
-          className="hover:text-primary-light-500 dark:hover:text-primary-dark-500 text-sm transition-all"
+          className="hover:text-primary-light-500 dark:hover:text-primary-dark-500 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50"
           onClick={async () => {
-            const skipResponse = await skipMFAAndContinueWithNextUrl({
-              userId,
-              loginName,
-              sessionId,
-              organization,
-              requestId,
-            });
+            setSkipping(true);
+            try {
+              const skipResponse = await skipMFAAndContinueWithNextUrl({
+                userId,
+                loginName,
+                sessionId,
+                organization,
+                requestId,
+              });
 
-            handleServerActionResponse(skipResponse, router, setSamlData, setError);
+              handleServerActionResponse(skipResponse, router, setSamlData, setError);
+            } finally {
+              setSkipping(false);
+            }
           }}
+          disabled={busy}
           type="button"
           data-testid="reset-button"
         >

@@ -2,11 +2,11 @@
 
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { resetPassword, sendPassword } from "@/lib/server/password";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { create } from "@zitadel/client";
 import { ChecksSchema } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
 import { LoginSettings } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertType } from "./alert";
@@ -40,13 +40,14 @@ export function PasswordForm({ loginSettings, loginName, organization, defaultOr
   const [error, setError] = useState<string>("");
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   async function submitPassword(values: Inputs) {
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       const response = await sendPassword({
@@ -63,14 +64,14 @@ export function PasswordForm({ loginSettings, loginName, organization, defaultOr
     } catch {
       setError(t("verify.errors.couldNotVerifyPassword"));
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
   async function resetPasswordAndContinue() {
     setError("");
     setInfo("");
-    setLoading(true);
+    setSubmitting(true);
 
     const response = await resetPassword({
       loginName,
@@ -83,7 +84,7 @@ export function PasswordForm({ loginSettings, loginName, organization, defaultOr
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (response && "error" in response) {

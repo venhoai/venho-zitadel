@@ -7,9 +7,20 @@ export type ServerActionResponse =
   | undefined
   | null;
 
+/**
+ * VENHO FORK: `assign` and `hold` come from `useLeavingRouter`, so a form
+ * stays busy through a full-page load or a SAML post too, not only through a
+ * route push. Without them the behaviour is upstream's.
+ */
+export type ActionRouter = {
+  push: (url: string) => void;
+  assign?: (url: string) => void;
+  hold?: () => void;
+};
+
 export function handleServerActionResponse(
   response: ServerActionResponse,
-  router: { push: (url: string) => void },
+  router: ActionRouter,
   setSamlData: (data: { url: string; fields: Record<string, string> }) => void,
   setError: (error: string) => void,
 ): boolean {
@@ -25,7 +36,11 @@ export function handleServerActionResponse(
         // by CSP connect-src 'self' for non-same-origin URLs.
         // CodeQL: This is safe — the URL is validated by isSafeRedirectUri above,
         // which blocks javascript:, data:, file:, blob:, and about: schemes.
-        window.location.href = response.redirect; // lgtm[js/client-side-unvalidated-url-redirection]
+        if (router.assign) {
+          router.assign(response.redirect);
+        } else {
+          window.location.href = response.redirect; // lgtm[js/client-side-unvalidated-url-redirection]
+        }
       } else {
         router.push(response.redirect);
       }
@@ -39,6 +54,7 @@ export function handleServerActionResponse(
 
   if ("samlData" in response && response.samlData) {
     if (isSafeRedirectUri(response.samlData.url)) {
+      router.hold?.();
       setSamlData(response.samlData);
       return true;
     } else {

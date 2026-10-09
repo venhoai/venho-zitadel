@@ -4,12 +4,12 @@ import { completeFlowOrGetUrl } from "@/lib/client";
 import { handleServerActionResponse } from "@/lib/client-utils";
 import { updateOrCreateSession } from "@/lib/server/session";
 import { appendRequestIdToUrlTemplate } from "@/lib/url-template";
+import { useLeavingRouter } from "@/lib/use-leaving-router";
 import { create } from "@zitadel/client";
 import { RequestChallengesSchema } from "@zitadel/proto/zitadel/session/v2/challenge_pb";
 import { ChecksSchema } from "@zitadel/proto/zitadel/session/v2/session_service_pb";
 import { LoginSettings } from "@zitadel/proto/zitadel/settings/v2/login_settings_pb";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { AutoSubmitForm } from "./auto-submit-form";
@@ -39,10 +39,11 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
   const t = useTranslations("otp");
 
   const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [samlData, setSamlData] = useState<{ url: string; fields: Record<string, string> } | null>(null);
 
-  const router = useRouter();
+  const { router, navigating } = useLeavingRouter();
+  const loading = submitting || navigating;
 
   const initialized = useRef(false);
 
@@ -114,7 +115,7 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
   useEffect(() => {
     if (!initialized.current && ["email", "sms"].includes(method) && !code) {
       initialized.current = true;
-      setLoading(true);
+      setSubmitting(true);
       updateSessionForOTPChallenge()
         .then((response) => {
           if (response?.error) {
@@ -122,13 +123,13 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
           }
         })
         .finally(() => {
-          setLoading(false);
+          setSubmitting(false);
         });
     }
   }, [updateSessionForOTPChallenge, method, code]);
 
   async function submitCode(values: Inputs, organization?: string) {
-    setLoading(true);
+    setSubmitting(true);
 
     let body: any = {
       code: values.code,
@@ -173,7 +174,7 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
         return;
       })
       .finally(() => {
-        setLoading(false);
+        setSubmitting(false);
       });
 
     if (response && "error" in response && response.error) {
@@ -187,7 +188,7 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
   function setCodeAndContinue(values: Inputs) {
     return submitCode(values, organization).then(async (response) => {
       if (response && "sessionId" in response) {
-        setLoading(true);
+        setSubmitting(true);
         // Wait for 2 seconds to avoid eventual consistency issues with an OTP code being verified in the /login endpoint
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -206,11 +207,11 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
                 },
             loginSettings?.defaultRedirectUri,
           );
-          setLoading(false);
+          setSubmitting(false);
 
           handleServerActionResponse(callbackResponse, router, setSamlData, setError);
         } else {
-          setLoading(false);
+          setSubmitting(false);
         }
       }
     });
@@ -263,12 +264,12 @@ export function LoginOTP({ host, loginName, sessionId, requestId, organization, 
               type="button"
               className="text-text-light-500 dark:text-text-dark-500 font-semibold hover:underline disabled:text-gray-400 dark:disabled:text-gray-700"
               onClick={async () => {
-                setLoading(true);
+                setSubmitting(true);
                 const response = await updateSessionForOTPChallenge();
                 if (response?.error) {
                   setError(response.error);
                 }
-                setLoading(false);
+                setSubmitting(false);
               }}
               data-testid="resend-button"
             >
