@@ -13,6 +13,7 @@ import { getOrSetFingerprintId } from "../fingerprint";
 import { createLogger } from "../logger";
 import { getServiceConfig } from "../service-url";
 import { checkEmailVerification, checkMFAFactors } from "../verify-helper";
+import { grantSelfManagement } from "./self-management";
 
 const logger = createLogger("register");
 
@@ -111,6 +112,13 @@ export async function registerUser(
   if (!addResponse) {
     return { error: t("errors.couldNotCreateUser") };
   }
+
+  // VENHO FORK: the right to delete this account later, from Venho.
+  await grantSelfManagement({
+    serviceConfig,
+    userId: addResponse.userId,
+    organizationId: addResponse.details?.resourceOwner,
+  });
 
   let checkPayload: any = {
     user: { search: { case: "userId", value: addResponse.userId } },
@@ -273,6 +281,13 @@ export async function registerUserAndLinkToIDP(
   if (!idpLink) {
     return { error: t("errors.couldNotLinkIDP") };
   }
+
+  // VENHO FORK: the right to delete this account later, from Venho.
+  await grantSelfManagement({
+    serviceConfig,
+    userId: addUserResponse.userId,
+    organizationId: addUserResponse.details?.resourceOwner,
+  });
 
   const session = await createSessionForIdpAndUpdateCookie({
     requestId: command.requestId,

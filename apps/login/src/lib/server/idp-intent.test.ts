@@ -57,6 +57,10 @@ vi.mock("../fingerprint", () => ({
   getFingerprintIdCookie: vi.fn(),
 }));
 
+vi.mock("./self-management", () => ({
+  grantSelfManagement: vi.fn(),
+}));
+
 describe("processIDPCallback", () => {
   // Mock modules
   let mockHeaders: any;
@@ -774,6 +778,14 @@ describe("processIDPCallback", () => {
         organization: "org123",
       });
       expect(result.redirect).toBe("https://app.example.com/success");
+
+      // VENHO FORK: and the new account can be deleted from Venho later.
+      const { grantSelfManagement } = await import("./self-management");
+      expect(grantSelfManagement).toHaveBeenCalledWith({
+        serviceConfig: { baseUrl: "https://api.example.com" },
+        userId: "newuser123",
+        organizationId: "org123",
+      });
     });
 
     test("should auto-create user from the new create_user action including metadata", async () => {

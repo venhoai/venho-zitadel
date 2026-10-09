@@ -53,6 +53,10 @@ vi.mock("../fingerprint", () => ({
   getOrSetFingerprintId: vi.fn(() => Promise.resolve("agent-1")),
 }));
 
+vi.mock("./self-management", () => ({
+  grantSelfManagement: vi.fn(),
+}));
+
 vi.mock("next-intl/server", () => ({
   getTranslations: vi.fn(() => (key: string) => key),
 }));
@@ -217,5 +221,56 @@ describe("registerUser — an address that already has an account", () => {
     vi.mocked(zitadel.addHumanUser).mockRejectedValue(new Error("boom"));
 
     expect(await registerUser({ ...command, password: "hunter2!" })).toEqual({ error: "errors.couldNotCreateUser" });
+  });
+});
+
+describe("every sign-up can delete its own account later", () => {
+  // VENHO FORK: ZITADEL grants `user.self.delete` only through a membership
+  // role, so without this the account outlives "Delete account" in Venho.
+  test("a password or passkey sign-up is granted self-management in its organization", async () => {
+    const { zitadel } = await mocks();
+    vi.mocked(zitadel.addHumanUser).mockResolvedValue({
+      userId: "user-1",
+      details: { resourceOwner: "org-1" },
+    } as any);
+    const { grantSelfManagement } = await import("./self-management");
+
+    await registerUser({ ...command, password: "hunter2!" });
+
+    expect(grantSelfManagement).toHaveBeenCalledWith({
+      serviceConfig: { baseUrl: "https://zitadel.example.com" },
+      userId: "user-1",
+      organizationId: "org-1",
+    });
+  });
+
+  test("a sign-up through an identity provider is granted it too", async () => {
+    const { zitadel } = await mocks();
+    vi.mocked(zitadel.addHumanUser).mockResolvedValue({
+      userId: "user-1",
+      details: { resourceOwner: "org-1" },
+    } as any);
+    const { grantSelfManagement } = await import("./self-management");
+
+    await registerUserAndLinkToIDP({
+      ...command,
+      idpIntent: { idpIntentId: "intent-1", idpIntentToken: "token-1" },
+      idpUserId: "google-1",
+      idpId: "idp-1",
+      idpUserName: "new@example.com",
+    });
+
+    expect(grantSelfManagement).toHaveBeenCalledWith(expect.objectContaining({ userId: "user-1", organizationId: "org-1" }));
+  });
+
+  test("an address that already has an account grants nothing", async () => {
+    const { zitadel } = await mocks();
+    const { Code, ConnectError } = await import("@zitadel/client");
+    vi.mocked(zitadel.addHumanUser).mockRejectedValue(new ConnectError("exists", Code.AlreadyExists));
+    const { grantSelfManagement } = await import("./self-management");
+
+    await registerUser({ ...command, password: "hunter2!" });
+
+    expect(grantSelfManagement).not.toHaveBeenCalled();
   });
 });

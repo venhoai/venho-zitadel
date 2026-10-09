@@ -366,6 +366,24 @@ sign-up frames' position, used everywhere so the flow never jumps).
   The `/device` proxy rewrite below **must keep the whole query string**, not
   just `user_code`, or every desktop user lands by the no-intent rule.
 
+### A busy button stays busy until the next page is on screen
+
+Every form here awaits a server action and then `router.push`es — and the push
+only starts the navigation; the next route still renders on the server, a
+second or two on the deployed instances. Upstream cleared `loading` in a
+`finally` as soon as the push was issued, so the button went back to idle on
+the old page. People clicked again: a second account, a second session, a
+second verification mail, a device request already spent.
+
+`src/lib/use-leaving-router.ts` runs the push inside a transition, which React
+keeps pending until the new route commits, and stays busy through a full-page
+load or a SAML post until the browser restores the page from its back/forward
+cache. Forms show `submitting || navigating` and disable while it is true; in
+the account picker one tile on its way disables the others.
+`test-mocks/slow-navigation.tsx` makes a test's push take its time the way the
+app router's does, which is what the form tests use to hold the old page on
+screen.
+
 ## Staying in sync with upstream
 
 Treat upstream as a dependency, not a one-time import:
@@ -510,13 +528,35 @@ itself:
 - **Device code lifetime**, `ZITADEL_OIDC_DEVICEAUTH_LIFETIME`. Consent now
   happens after sign-in, so a first-time user creates an account and verifies an
   email inside this window. The default is five minutes, which is not enough;
-  local dev uses 15m and deployed instances should match.
+  local dev uses 15m and deployed instances should match. **As of 9 Oct 2026
+  they do not**: both `auth.dev.venho.ai` and `auth.test.venho.ai` answer a
+  device authorization with `expires_in: 300`. Set
+  `ZITADEL_OIDC_DEVICEAUTH_LIFETIME: 15m` on both ZITADEL containers.
 - **Passkeys as a primary method.** The sign-up design goes straight from email
   to password; upstream shows a "Passkey or Password?" chooser whenever
   `passkeysType` is `ALLOWED`. The designs use device/WebAuthn as a *second*
   factor instead, so matching them means not allowing passkeys as the primary
   method. That is a security-policy decision, deliberately left to a human.
 - **Branding**, via `apps/login/scripts/venho-branding.sh` — see above.
+- **Email copy, logo and the password-changed mail**, via
+  `deploy/venho/seed-mail.sh`. Message texts live in the database per instance,
+  and the stock ones talk about "users", "initialization" and — through the
+  invite's application name, now defaulting to "Venho" in
+  `apps/login/src/lib/zitadel.ts` — "Zitadel Login", which people read as an
+  invitation to somebody else's admin console. The script writes Venho copy
+  (English) for every mail a Venho user can get, uploads the Venho mark as the
+  label logo, and turns the password-changed notification off: its button is
+  hardcoded to `/ui/console` (`internal/notification/handlers/user_notifier.go`)
+  and cannot be pointed anywhere else. Idempotent. Run after
+  `venho-branding.sh`, on every instance.
+- **Self-deletion.** ZITADEL grants `user.self.delete` only through a membership
+  role, so a plain user's own token cannot delete their account. The login app
+  now makes every new user a member of their organization with
+  `ORG_USER_SELF_MANAGER` at each place it creates one
+  (`apps/login/src/lib/server/self-management.ts`), which is what lets "Delete
+  account" in venho-desktop work. Accounts created before that need
+  `deploy/venho/grant-self-delete.sh` (idempotent, `DRY_RUN=1` to preview), once
+  per instance.
 
 ## Open items
 

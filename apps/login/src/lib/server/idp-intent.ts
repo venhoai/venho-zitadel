@@ -35,6 +35,7 @@ import { headers } from "next/headers";
 import { getFingerprintIdCookie } from "../fingerprint";
 import { createNewSessionFromIdpIntent } from "./idp";
 import { syncInstanceRolesFromIdpIntent } from "./instance-roles";
+import { grantSelfManagement } from "./self-management";
 
 const logger = createLogger("idp-intent");
 
@@ -658,6 +659,9 @@ async function handleAutoCreation(ctx: IDPHandlerContext): Promise<IDPHandlerRes
       // Synchronize instance member roles for ZITADEL IdPs with instanceRolesInfo
       // configured (e.g. support access). Merge-only and never blocks the login.
       await syncInstanceRolesFromIdpIntent({ serviceConfig, intent, userId: newUser.id });
+
+      // VENHO FORK: the right to delete this account later, from Venho.
+      await grantSelfManagement({ serviceConfig, userId: newUser.id, organizationId: orgToRegisterOn });
 
       // Create session for newly created user
       const sessionResult = await createNewSessionFromIdpIntent({
