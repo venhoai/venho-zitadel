@@ -595,7 +595,9 @@ export async function createInviteCode({
   userId: string;
 }>) {
   let medium = create(SendInviteCodeSchema, {
-    applicationName: process.env.NEXT_PUBLIC_APPLICATION_NAME || "Zitadel Login",
+    // VENHO FORK: the invite mail names the app it invites to; upstream said
+    // "Zitadel Login", which reads as an invitation to someone else's console.
+    applicationName: process.env.NEXT_PUBLIC_APPLICATION_NAME || "Venho",
   });
 
   medium = {
